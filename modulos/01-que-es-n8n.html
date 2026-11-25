@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 1 · ¿Qué es n8n?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m1" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 1 · 15 minutos de lectura</span>
+    <h1>¿Qué es n8n?</h1>
+    <p class="lead">Antes de instalar nada, vamos a entender qué es n8n, cómo "piensa" y qué tipo de tareas puede hacer por ti.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#definicion">Definición</a><a href="#como-funciona">Cómo funciona</a><a href="#conceptos">Conceptos clave</a><a href="#comparativa">Comparativa</a><a href="#ejemplos">Ejemplos</a><a href="#test">Test</a>
+    </nav>
+
+    <h2 id="definicion">Una definición sencilla</h2>
+    <p><strong>n8n</strong> (se pronuncia <em>"n-eight-n"</em>, abreviatura de <em>nodemation</em>, "automatización con nodos") es una herramienta para <strong>automatizar tareas conectando aplicaciones entre sí</strong>. En lugar de escribir un programa, dibujas el proceso en un lienzo: colocas bloques llamados <strong>nodos</strong> y los unes con flechas.</p>
+    <p>Piensa en una cadena de montaje: el primer puesto recibe algo (un email, un formulario, una hora concreta del día), lo pasa al siguiente, que lo transforma, y así hasta el final. Cada puesto de la cadena es un nodo, y la cadena completa es un <strong>workflow</strong> (flujo de trabajo).</p>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Visual</h3><p style="margin:0">Construyes automatizaciones arrastrando nodos. Hay cientos de integraciones listas: Gmail, Google Sheets, Slack, Telegram, Notion, bases de datos…</p></div>
+      <div class="card"><h3 style="margin-top:0">Flexible</h3><p style="margin:0">Cuando lo visual no basta, puedes escribir JavaScript o Python dentro del flujo, o llamar a cualquier API con el nodo HTTP Request.</p></div>
+      <div class="card"><h3 style="margin-top:0">Tuyo</h3><p style="margin:0">Puedes instalarlo gratis en tu ordenador o servidor (<em>self-hosted</em>), de modo que tus datos se quedan contigo. También existe una versión en la nube de pago.</p></div>
+    </div>
+    <div class="note info"><p>n8n usa una licencia <em>fair-code</em>: el código es público y puedes usarlo gratis para tus propios procesos o los de tu empresa, pero no revenderlo como servicio a terceros sin acuerdo con n8n.</p></div>
+
+    <h2 id="como-funciona">¿Cómo funciona un workflow?</h2>
+    <p>Todo workflow sigue la misma idea en tres pasos:</p>
+    <ol class="steps">
+      <li><strong>Algo lo pone en marcha (trigger).</strong> Puede ser que pulses un botón, que llegue una hora programada, que alguien envíe un formulario o que entre un correo nuevo.</li>
+      <li><strong>Los datos viajan de nodo en nodo.</strong> Cada nodo recibe datos, hace su trabajo (filtrar, transformar, consultar una app, preguntar a una IA…) y pasa el resultado al siguiente.</li>
+      <li><strong>Se produce un resultado.</strong> Se envía un mensaje, se guarda una fila en una hoja de cálculo, se crea una tarea, se responde a una web…</li>
+    </ol>
+    <div class="card" style="padding:8px 14px">
+      <div class="flow" data-flujo="basico"></div>
+    </div>
+    <p style="margin-top:1em">Los puntos que ves moverse representan los <strong>datos</strong> pasando de un nodo a otro. En n8n esos datos viajan siempre en formato <strong>JSON</strong>, algo que veremos con calma en el módulo 5.</p>
+
+    <h2 id="conceptos">Conceptos clave</h2>
+    <p>Este pequeño vocabulario aparecerá en todo el tutorial. Pulsa cada término para ver su explicación.</p>
+    <div class="grid">
+      <details class="term"><summary><i>W</i>Workflow</summary><p>El flujo completo: el conjunto de nodos conectados que automatiza una tarea. Se puede activar para que funcione solo.</p></details>
+      <details class="term"><summary><i>N</i>Nodo</summary><p>Cada bloque del workflow. Hace una sola cosa: leer un email, filtrar datos, escribir en una hoja, llamar a una IA…</p></details>
+      <details class="term"><summary><i>T</i>Trigger</summary><p>Nodo especial que inicia el workflow: manual, por horario (Schedule), por petición web (Webhook) o por un evento de una aplicación.</p></details>
+      <details class="term"><summary><i>C</i>Conexión</summary><p>La línea que une dos nodos. Indica el camino que siguen los datos.</p></details>
+      <details class="term"><summary><i>I</i>Item</summary><p>Cada unidad de datos que viaja por el flujo (por ejemplo, un email o una fila). Un nodo puede recibir muchos items y procesa cada uno.</p></details>
+      <details class="term"><summary><i>K</i>Credencial</summary><p>Los accesos guardados (usuario, token, clave de API) que n8n usa para conectarse a un servicio en tu nombre. Se guardan cifrados.</p></details>
+      <details class="term"><summary><i>E</i>Ejecución</summary><p>Cada vez que el workflow se ejecuta. n8n guarda un historial para que puedas ver qué datos pasaron por cada nodo.</p></details>
+      <details class="term"><summary><i>X</i>Expresión</summary><p>Fórmula entre dobles llaves, como <code>{{ $json.email }}</code>, que sirve para usar datos de nodos anteriores.</p></details>
+    </div>
+
+    <h2 id="comparativa">n8n frente a otras herramientas</h2>
+    <p>Seguramente hayas oído hablar de Zapier o Make. Las tres sirven para automatizar, pero tienen enfoques distintos:</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Característica</th><th>n8n</th><th>Zapier</th><th>Make</th></tr></thead>
+      <tbody>
+        <tr><td>Instalar en tu propio equipo</td><td class="yes">Sí, gratis</td><td class="no">No, solo nube</td><td class="no">No, solo nube</td></tr>
+        <tr><td>Cómo cobra (versión nube)</td><td>Por ejecución del workflow completo</td><td>Por cada tarea (paso) realizada</td><td>Por operaciones o créditos</td></tr>
+        <tr><td>Código propio</td><td class="yes">JavaScript y Python</td><td>Limitado (pasos de código)</td><td>Limitado</td></tr>
+        <tr><td>Flujos complejos (ramas, bucles)</td><td class="yes">Muy completos</td><td>Básicos</td><td class="yes">Completos</td></tr>
+        <tr><td>IA y agentes</td><td class="yes">Nodos de agente, modelos y memoria</td><td>Sí</td><td>Sí</td></tr>
+        <tr><td>Curva de aprendizaje</td><td>Media</td><td>Baja</td><td>Media</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note tip"><p>La gran ventaja de n8n para aprender es que, instalado en local, <strong>puedes practicar sin límites y sin pagar</strong>. Es justo lo que haremos en el módulo 2.</p></div>
+
+    <h2 id="ejemplos">Ejemplos de lo que puedes hacer</h2>
+    <p>Estos son cinco workflows típicos. Al final del tutorial serás capaz de construirlos todos.</p>
+
+    <div class="example card">
+      <h3>1. Formulario → hoja de cálculo → email</h3>
+      <p>Cuando alguien rellena un formulario de tu web, sus datos se guardan en Google Sheets y recibe un correo de confirmación automático.</p>
+      <div class="flow" data-flujo="formulario"></div>
+    </div>
+    <div class="example card">
+      <h3>2. Resumen diario de noticias con IA</h3>
+      <p>Cada mañana a las 8:00 se leen tus fuentes RSS favoritas, una IA resume lo más importante y te lo envía por Telegram.</p>
+      <div class="flow" data-flujo="noticias"></div>
+    </div>
+    <div class="example card">
+      <h3>3. Copia automática de adjuntos</h3>
+      <p>Las facturas que llegan a tu Gmail se guardan solas en una carpeta de Google Drive, con el nombre del remitente y la fecha.</p>
+      <div class="flow" data-flujo="adjuntos"></div>
+    </div>
+    <div class="example card">
+      <h3>4. Chatbot que responde con tus documentos</h3>
+      <p>Un agente de IA atiende un chat y, antes de responder, consulta tus documentos (manuales, preguntas frecuentes) para dar respuestas correctas.</p>
+      <div class="flow" data-flujo="chatbot"></div>
+    </div>
+    <div class="example card">
+      <h3>5. Vigilar que tu web funciona</h3>
+      <p>Cada 5 minutos se comprueba si tu web responde. Si falla, te llega un aviso al momento.</p>
+      <div class="flow" data-flujo="monitor"></div>
+    </div>
+
+    <h2 id="test">Comprueba lo que has aprendido</h2>
+    <div id="quiz" class="quiz"></div>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="../index.html">← Inicio</a>
+      <a class="btn" href="02-instalacion-docker.html">Módulo 2: Instalación con Docker →</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Contenido revisado en noviembre de 2026 · <a href="https://docs.n8n.io/">Documentación oficial de n8n</a></footer>
+
+<script>
+window.FLUJOS = {
+  basico: [
+    { tipo: 'trig', ico: '▶', t: 'Trigger', d: 'Algo lo inicia' },
+    { ico: 'f(x)', t: 'Procesar', d: 'Transforma los datos' },
+    { ico: '?', t: 'Decidir', d: 'Si / si no' },
+    { ico: '✉', t: 'Resultado', d: 'Envía o guarda' }
+  ],
+  formulario: [
+    { tipo: 'trig', ico: 'F', t: 'Form Trigger', d: 'Nuevo envío' },
+    { ico: 'S', t: 'Google Sheets', d: 'Añadir fila' },
+    { ico: '@', t: 'Gmail', d: 'Enviar confirmación' }
+  ],
+  noticias: [
+    { tipo: 'trig', ico: '8:00', t: 'Schedule', d: 'Cada día' },
+    { ico: 'RSS', t: 'RSS Read', d: 'Leer noticias' },
+    { tipo: 'ai', ico: 'IA', t: 'AI Agent', d: 'Resumir' },
+    { ico: 'T', t: 'Telegram', d: 'Enviar mensaje' }
+  ],
+  adjuntos: [
+    { tipo: 'trig', ico: '@', t: 'Gmail Trigger', d: 'Correo nuevo' },
+    { ico: '?', t: 'IF', d: '¿Trae adjunto?' },
+    { ico: 'D', t: 'Google Drive', d: 'Subir archivo' }
+  ],
+  chatbot: [
+    { tipo: 'trig', ico: 'Chat', t: 'Chat Trigger', d: 'Mensaje nuevo' },
+    { tipo: 'ai', ico: 'IA', t: 'AI Agent', d: 'Piensa la respuesta' },
+    { ico: 'DB', t: 'Vector Store', d: 'Busca en tus docs' },
+    { ico: '↩', t: 'Respuesta', d: 'Contesta al usuario' }
+  ],
+  monitor: [
+    { tipo: 'trig', ico: '5′', t: 'Schedule', d: 'Cada 5 minutos' },
+    { ico: 'GET', t: 'HTTP Request', d: 'Llamar a la web' },
+    { ico: '?', t: 'IF', d: '¿Ha fallado?' },
+    { ico: '!', t: 'Aviso', d: 'Email o Telegram' }
+  ]
+};
+window.QUIZ = [
+  { p: '¿Qué es un nodo en n8n?', o: ['Un servidor donde se instala n8n', 'Cada bloque del workflow que realiza una acción concreta', 'Un tipo de cuenta de usuario'], c: 1, e: 'Un nodo es cada paso del flujo: leer, transformar, decidir, enviar…' },
+  { p: '¿Qué nodo pone en marcha un workflow?', o: ['El trigger', 'El último nodo', 'La credencial'], c: 0, e: 'El trigger es el disparador: manual, por horario, por webhook o por un evento de una app.' },
+  { p: '¿En qué formato viajan los datos entre nodos?', o: ['CSV', 'XML', 'JSON'], c: 2, e: 'n8n trabaja internamente con items en formato JSON.' },
+  { p: '¿Cuál es una ventaja de n8n frente a Zapier o Make?', o: ['Solo funciona en la nube', 'Puedes instalarlo gratis en tu propio equipo', 'No permite escribir código'], c: 1, e: 'n8n se puede autoalojar (self-hosted), lo que permite practicar sin límites y mantener tus datos.' },
+  { p: '¿Para qué sirve una credencial?', o: ['Para guardar los accesos a un servicio de forma segura', 'Para dar nombre a un workflow', 'Para programar la hora de ejecución'], c: 0, e: 'Las credenciales guardan, cifrados, los datos de acceso que n8n usa para conectarse a cada servicio.' }
+];
+</script>
+<script src="../js/main.js"></script>
+</body>
+</html>

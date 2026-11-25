@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 3 · El editor de n8n</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m3" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 3 · 30 minutos</span>
+    <h1>Primer contacto con el editor</h1>
+    <p class="lead">Ya tienes n8n funcionando. Ahora vamos a recorrer su interfaz: dónde está cada cosa, cómo se añaden y configuran los nodos, cómo se ejecuta un workflow y qué significa publicarlo.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#inicio">Pantalla de inicio</a><a href="#mapa">Mapa del editor</a><a href="#nodos">Panel de nodos</a><a href="#detalle">Detalle del nodo</a><a href="#ejecutar">Ejecutar</a><a href="#publicar">Guardar y publicar</a><a href="#atajos">Atajos</a><a href="#practica">Práctica</a><a href="#test">Test</a>
+    </nav>
+
+    <div class="note info"><p>Este módulo describe la interfaz de <strong>n8n 2.x</strong> (rama estable en noviembre de 2026). Si usas otra versión, algunos botones pueden cambiar de sitio o de nombre, pero los conceptos son los mismos. Recuerda que la interfaz de n8n está en inglés: te indicamos siempre el nombre original.</p></div>
+
+    <h2 id="inicio">La pantalla de inicio</h2>
+    <p>Al entrar en <code>http://localhost:5678</code> llegas a la vista <strong>Overview</strong> (vista general). Desde aquí se gestiona todo lo que hay en tu instalación. En la parte superior verás pestañas como estas:</p>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Workflows</h3><p style="margin:0">La lista de tus workflows. Los publicados llevan una etiqueta que lo indica. Desde aquí puedes crear uno nuevo con <strong>Create workflow</strong>.</p></div>
+      <div class="card"><h3 style="margin-top:0">Credentials</h3><p style="margin:0">Las credenciales guardadas para conectar con otros servicios (Gmail, Telegram…). Las veremos en el módulo 8.</p></div>
+      <div class="card"><h3 style="margin-top:0">Executions</h3><p style="margin:0">El historial de ejecuciones de todos tus workflows: cuándo se ejecutaron y si terminaron bien o con error.</p></div>
+    </div>
+    <p>El <strong>menú lateral izquierdo</strong> da acceso a la vista general, a tu espacio personal, a las plantillas (<em>Templates</em>), a la ayuda (<em>Help</em>) y, desde el menú de tu usuario, a la configuración (<em>Settings</em>).</p>
+    <div class="note tip"><p>Pulsa <kbd>Ctrl</kbd> + <kbd>K</kbd> (<kbd>Cmd</kbd> + <kbd>K</kbd> en Mac) para abrir la <strong>barra de comandos</strong>: un buscador para saltar a cualquier workflow o acción sin usar el ratón.</p></div>
+
+    <h2 id="mapa">Mapa del editor</h2>
+    <p>Crea un workflow nuevo con <strong>Create workflow</strong> y verás el editor. Pulsa cada número del esquema para saber qué es esa zona:</p>
+    <div class="ed-wrap">
+      <div class="ed" id="editor-mapa" aria-label="Esquema del editor de n8n">
+        <div class="sb" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i style="margin-top:auto"></i></div>
+        <div class="hd" aria-hidden="true"><span class="nm">Mi primer workflow</span><span class="tb"><span>Editor</span><span>Executions</span></span><span class="pub">Publish</span></div>
+        <div class="cv" aria-hidden="true">
+          <span class="ln" style="left:26%;top:44.5%;width:16%"></span>
+          <span class="ln" style="left:53%;top:44.5%;width:15%"></span>
+          <span class="nd tr" style="left:15%;top:35%">▶<small>Trigger</small></span>
+          <span class="nd" style="left:42%;top:35%">✎<small>Edit Fields</small></span>
+          <span class="plus" style="left:68%;top:39.3%">+</span>
+          <span class="zm"><i></i><i></i><i></i></span>
+          <span class="run">▶ Execute workflow</span>
+        </div>
+        <div class="lg" aria-hidden="true">Logs ▾</div>
+      </div>
+      <div class="ed-info card" id="editor-info" aria-live="polite"></div>
+    </div>
+
+    <h2 id="nodos">El panel de nodos</h2>
+    <p>Para añadir un nodo, pulsa el botón <strong>+</strong> del lienzo, el <strong>+</strong> que aparece al final de un nodo o la tecla <kbd>N</kbd>. Se abre a la derecha el <strong>panel de nodos</strong>, con un buscador y los nodos organizados por categorías:</p>
+    <div class="cats">
+      <div><strong>Triggers</strong><span>Cuando el workflow está vacío, lo primero que te pide es el disparador: manual, por horario, webhook, formulario, chat o evento de una app.</span></div>
+      <div><strong>AI</strong><span>Agentes, modelos de lenguaje, cadenas y herramientas de IA.</span></div>
+      <div><strong>Action in an app</strong><span>Acciones en servicios externos: Gmail, Google Sheets, Slack, Notion…</span></div>
+      <div><strong>Data transformation</strong><span>Modificar datos: editar campos, filtrar, ordenar, agrupar, fechas…</span></div>
+      <div><strong>Flow</strong><span>Controlar el camino: condiciones (IF), bifurcaciones (Switch), unir ramas (Merge), bucles.</span></div>
+      <div><strong>Core</strong><span>Nodos básicos: HTTP Request, Code, Webhook, ejecutar otro workflow…</span></div>
+      <div><strong>Human in the loop</strong><span>Pausar el workflow hasta que una persona apruebe o responda.</span></div>
+    </div>
+    <div class="note tip"><p>No hace falta navegar por categorías: escribe directamente lo que buscas (por ejemplo <em>"sheets"</em> o <em>"telegram"</em>) y pulsa <kbd>Enter</kbd> para insertar el primer resultado.</p></div>
+
+    <h2 id="detalle">La vista de detalle del nodo</h2>
+    <p>Al hacer <strong>doble clic</strong> en un nodo (o seleccionarlo y pulsar <kbd>Enter</kbd>) se abre su vista de detalle, en inglés <em>Node Details View</em>. Es donde pasarás más tiempo. Tiene tres columnas:</p>
+    <div class="ndv">
+      <div><h4>Input</h4><p>Los datos que recibe el nodo del anterior. Puedes arrastrar campos desde aquí a los parámetros.</p></div>
+      <div><h4>Parameters · Settings</h4><p>En <em>Parameters</em> configuras qué hace el nodo. En <em>Settings</em>, su comportamiento: reintentos, qué hacer si falla, notas…</p></div>
+      <div><h4>Output</h4><p>Los datos que produce el nodo tras ejecutarlo. Es lo que recibirá el siguiente.</p></div>
+    </div>
+    <ul>
+      <li><strong>Execute step</strong>: ejecuta solo ese nodo (y los anteriores si hace falta) para ver su resultado sin lanzar el workflow entero.</li>
+      <li><strong>Schema, Table y JSON</strong>: tres formas de ver los datos de entrada y salida. <em>Table</em> es la más cómoda al principio; <em>JSON</em> muestra el formato real.</li>
+      <li><strong>Pin data</strong> (icono de chincheta o tecla <kbd>P</kbd> con el nodo seleccionado): "congela" la salida de un nodo para no tener que volver a ejecutarlo mientras pruebas. Muy útil con triggers que reciben datos externos.</li>
+      <li>En un campo vacío, escribe <kbd>=</kbd> para pasarlo al <strong>modo expresión</strong> y usar datos de nodos anteriores. Lo veremos a fondo en el módulo 5.</li>
+    </ul>
+
+    <h2 id="ejecutar">Ejecutar un workflow</h2>
+    <p>Hay dos maneras de que un workflow se ejecute, y conviene distinguirlas desde el principio:</p>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Ejecución manual (de prueba)</h3><p style="margin:0">Pulsas <strong>Execute workflow</strong> (o <kbd>Ctrl</kbd> + <kbd>Enter</kbd>). Ves en el lienzo cómo los datos pasan por cada nodo: los nodos correctos se marcan en verde y los que fallan, en rojo. Es lo que harás mientras construyes.</p></div>
+      <div class="card"><h3 style="margin-top:0">Ejecución en producción</h3><p style="margin:0">Cuando el workflow está <strong>publicado</strong>, su trigger se activa solo: llega la hora programada, entra un webhook, se envía un formulario… No necesitas tener el editor abierto.</p></div>
+    </div>
+    <p>Tras una ejecución manual, el panel <strong>Logs</strong> de la parte inferior muestra paso a paso qué ha hecho cada nodo. Y en la pestaña <strong>Executions</strong> del workflow tienes el historial de ejecuciones: al abrir una, ves exactamente qué datos pasaron por cada nodo, algo fundamental para encontrar errores.</p>
+
+    <h2 id="publicar">Guardar y publicar</h2>
+    <p>Desde n8n 2.0 hay una diferencia clave entre <strong>guardar</strong> y <strong>publicar</strong>:</p>
+    <ol class="steps">
+      <li><strong>Guardado automático.</strong> Desde la versión 2.4 no hay botón de guardar: n8n guarda tus cambios solo, en pocos segundos, como un <em>borrador</em>.</li>
+      <li><strong>Publicar.</strong> Cuando el workflow está listo para funcionar solo, pulsa <strong>Publish</strong> (arriba a la derecha) o <kbd>Shift</kbd> + <kbd>P</kbd>. Puedes poner nombre y descripción a la versión y confirmar. A partir de ese momento se activan sus triggers (horarios, webhooks, formularios, eventos de apps).</li>
+      <li><strong>Seguir editando sin miedo.</strong> Si cambias un workflow publicado, producción sigue usando la versión publicada hasta que vuelvas a publicar. Así nunca pones en marcha cambios a medias.</li>
+    </ol>
+    <p>El botón <strong>Publish</strong> cambia de aspecto según el estado del workflow:</p>
+    <div class="states">
+      <div><em class="st-off">Desactivado</em><span>No hay cambios que publicar.</span></div>
+      <div><em class="st-on">Listo</em><span>El workflow tiene cambios y aún no se ha publicado.</span></div>
+      <div><em class="st-ok">Publicado</em><span>Publicado y al día: lo que ves es lo que está funcionando.</span></div>
+      <div><em class="st-ch">Con cambios</em><span>Publicado, pero has hecho cambios que todavía no están en producción.</span></div>
+    </div>
+    <ul>
+      <li>Para <strong>despublicar</strong> (detenerlo), abre la flecha junto a <em>Publish</em> y elige <em>Unpublish</em>.</li>
+      <li>El icono de <strong>historial</strong> de la cabecera muestra las versiones anteriores. Puedes restaurar una o publicar otra distinta, lo que permite volver atrás en un clic.</li>
+    </ul>
+    <div class="note info"><p>Un workflow que solo tiene un <strong>trigger manual</strong> no necesita publicarse: se ejecuta cuando tú pulsas el botón. Publicar solo tiene sentido con triggers automáticos, que veremos en el módulo 6.</p></div>
+
+    <h2 id="atajos">Atajos de teclado útiles</h2>
+    <p>En Mac, usa <kbd>Cmd</kbd> en lugar de <kbd>Ctrl</kbd>.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Atajo</th><th>Qué hace</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>N</kbd></td><td>Abrir el panel de nodos</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Ejecutar el workflow</td></tr>
+        <tr><td><kbd>Shift</kbd> + <kbd>P</kbd></td><td>Publicar</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td><td>Barra de comandos</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>Deshacer / rehacer</td></tr>
+        <tr><td><kbd>1</kbd></td><td>Ajustar el zoom para ver todo el workflow</td></tr>
+        <tr><td><kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>Acercar / alejar / restablecer zoom</td></tr>
+        <tr><td><kbd>Espacio</kbd> + arrastrar</td><td>Mover el lienzo</td></tr>
+        <tr><td><kbd>Shift</kbd> + <kbd>S</kbd></td><td>Añadir una nota adhesiva (<em>sticky note</em>)</td></tr>
+        <tr><td><kbd>F2</kbd></td><td>Renombrar el nodo seleccionado</td></tr>
+        <tr><td><kbd>D</kbd></td><td>Desactivar / activar el nodo seleccionado</td></tr>
+        <tr><td><kbd>P</kbd></td><td>Fijar (<em>pin</em>) los datos del nodo seleccionado</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>C</kbd> / <kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>Copiar / pegar nodos</td></tr>
+        <tr><td><kbd>Supr</kbd></td><td>Borrar los nodos seleccionados</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h2 id="practica">Práctica guiada</h2>
+    <p>Vamos a poner en práctica todo lo anterior. Tardarás unos 10 minutos.</p>
+    <ol class="steps">
+      <li><strong>Crea un workflow</strong> desde <em>Overview → Create workflow</em>. Haz clic en el nombre ("My workflow") y cámbialo por <strong>Práctica módulo 3</strong>.</li>
+      <li><strong>Añade un trigger manual.</strong> Pulsa el <strong>+</strong> del centro, busca <em>"manual"</em> y elige <strong>Trigger manually</strong>. Aparecerá el nodo de trigger en el lienzo.</li>
+      <li><strong>Ejecútalo</strong> con <strong>Execute workflow</strong>. El nodo se marcará en verde. Ábrelo con doble clic y mira la pestaña <em>Output</em>: hay un item vacío, porque este trigger solo "da la salida".</li>
+      <li><strong>Pega nodos desde el portapapeles.</strong> Copia el código de abajo, haz clic en un hueco del lienzo y pulsa <kbd>Ctrl</kbd> + <kbd>V</kbd>. Aparecerán dos nodos conectados: un trigger y un nodo <em>Edit Fields</em> que crea un mensaje. Borra el trigger que creaste en el paso 2 para no tener dos.</li>
+      <li><strong>Ejecuta de nuevo</strong> y abre el nodo <em>Crear mensaje</em>. En <em>Output</em>, cambia entre <em>Table</em>, <em>JSON</em> y <em>Schema</em> para ver el mismo dato de tres formas.</li>
+      <li><strong>Documenta</strong>: pulsa <kbd>Shift</kbd> + <kbd>S</kbd> para añadir una nota adhesiva y escribe qué hace el workflow.</li>
+      <li><strong>Revisa el historial</strong> en la pestaña <em>Executions</em>: verás tus ejecuciones de prueba.</li>
+      <li>Pulsa <kbd>1</kbd> para encuadrar todo y comprueba que ves los nodos y la nota.</li>
+    </ol>
+    <div class="code"><div class="h">Workflow de práctica (JSON para pegar en el lienzo)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "6b1f0c2e-1a3d-4e5f-8a9b-0c1d2e3f4a01",
+      "name": "Al pulsar Ejecutar"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6b1f0c2e-1a3d-4e5f-8a9b-0c1d2e3f4a02",
+              "name": "mensaje",
+              "value": "¡Hola, n8n! Este es mi primer workflow.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [240, 0],
+      "id": "6b1f0c2e-1a3d-4e5f-8a9b-0c1d2e3f4a03",
+      "name": "Crear mensaje"
+    }
+  ],
+  "connections": {
+    "Al pulsar Ejecutar": {
+      "main": [[{ "node": "Crear mensaje", "type": "main", "index": 0 }]]
+    }
+  }
+}</code></pre></div>
+    <div class="note info"><p>Los workflows de n8n son simplemente <strong>JSON</strong>. Por eso puedes copiarlos y pegarlos entre instalaciones, compartirlos o guardarlos como archivo. Para exportar un workflow completo, usa el menú <strong>⋯</strong> de la cabecera y <em>Download</em>; para importarlo, <em>Import from File</em>.</p></div>
+
+    <h3>Comprueba tu práctica</h3>
+    <ul class="check" id="checklist">
+      <li><label><input type="checkbox"><span>He creado y renombrado el workflow</span></label></li>
+      <li><label><input type="checkbox"><span>He ejecutado un trigger manual y he visto su salida</span></label></li>
+      <li><label><input type="checkbox"><span>He pegado el workflow de práctica con <kbd>Ctrl</kbd> + <kbd>V</kbd></span></label></li>
+      <li><label><input type="checkbox"><span>He visto la salida en Table, JSON y Schema</span></label></li>
+      <li><label><input type="checkbox"><span>He añadido una nota adhesiva</span></label></li>
+      <li><label><input type="checkbox"><span>He encontrado mis ejecuciones en la pestaña Executions</span></label></li>
+    </ul>
+    <p class="check-msg" id="check-msg" aria-live="polite"></p>
+
+    <h2 id="test">Comprueba lo que has aprendido</h2>
+    <div id="quiz" class="quiz"></div>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="02-instalacion-docker.html">← Módulo 2: Instalación</a>
+      <a class="btn ghost" href="../index.html">Volver al índice</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Basado en la <a href="https://docs.n8n.io/">documentación oficial</a> de n8n 2.x · Revisado en noviembre de 2026</footer>
+
+<script>
+window.QUIZ = [
+  { p: '¿Cómo se abre la vista de detalle de un nodo?', o: ['Con un clic derecho en el lienzo', 'Con doble clic sobre el nodo', 'Desde la pestaña Executions'], c: 1, e: 'Doble clic (o seleccionarlo y pulsar Enter) abre la vista de detalle con Input, Parameters y Output.' },
+  { p: 'En n8n 2.x, ¿qué ocurre cuando editas un workflow ya publicado?', o: ['Los cambios se aplican en producción al instante', 'Los cambios se guardan como borrador hasta que vuelves a publicar', 'n8n no permite editarlo'], c: 1, e: 'Guardar y publicar están separados: producción usa la versión publicada hasta que publiques otra.' },
+  { p: '¿Para qué sirve "Pin data"?', o: ['Para fijar la salida de un nodo y no tener que volver a ejecutarlo mientras pruebas', 'Para anclar un nodo en una posición del lienzo', 'Para proteger el workflow con contraseña'], c: 0, e: 'Fijar datos es muy útil para probar los nodos siguientes sin depender de servicios externos.' },
+  { p: '¿Qué tecla abre el panel de nodos?', o: ['P', 'N', 'D'], c: 1, e: 'N abre el panel de nodos. P fija datos y D desactiva el nodo seleccionado.' },
+  { p: '¿Necesita publicarse un workflow que solo tiene un trigger manual?', o: ['Sí, siempre', 'No, se ejecuta cuando pulsas Execute workflow', 'Solo si tiene más de tres nodos'], c: 1, e: 'Publicar activa triggers automáticos (horarios, webhooks, formularios…). Con un trigger manual no hace falta.' }
+];
+</script>
+<script src="../js/main.js"></script>
+<script>
+{
+  const ZONAS = [
+    { x: 7.5, y: 40, t: 'Menú lateral', d: 'Acceso a la vista general (Overview), tu espacio personal, plantillas, ayuda y configuración. Puedes contraerlo para ganar espacio.' },
+    { x: 26, y: 17, t: 'Nombre del workflow', d: 'Haz clic para renombrarlo. A su lado puedes añadir etiquetas (tags) para organizar tus workflows.' },
+    { x: 57, y: 17, t: 'Editor y Executions', d: 'Editor es el lienzo donde construyes. Executions muestra el historial de ejecuciones de este workflow con los datos de cada nodo.' },
+    { x: 90, y: 17, t: 'Publish e historial', d: 'Publish pone el workflow en producción (atajo Shift + P). La flecha de al lado permite despublicar, y el icono de historial muestra las versiones anteriores.' },
+    { x: 86, y: 62, t: 'El lienzo (canvas)', d: 'La cuadrícula de puntos donde colocas y conectas los nodos. Muévelo con Espacio + arrastrar y haz zoom con Ctrl + rueda del ratón.' },
+    { x: 35.4, y: 36.5, t: 'Un nodo', d: 'Cada bloque del workflow. El de borde redondeado a la izquierda es un trigger. Doble clic para abrir su configuración; pasa el ratón por encima para ver botones rápidos (ejecutar, desactivar, borrar).' },
+    { x: 75.4, y: 37, t: 'Añadir un nodo', d: 'El + abre el panel de nodos para añadir el siguiente paso. También puedes arrastrar desde el punto de salida de un nodo o pulsar N.' },
+    { x: 57.5, y: 70, t: 'Execute workflow', d: 'Ejecuta el workflow de forma manual para probarlo (Ctrl + Enter). Los nodos se marcan en verde si funcionan o en rojo si fallan.' },
+    { x: 22, y: 72, t: 'Controles de zoom', d: 'Ajustar a la pantalla, acercar, alejar y ordenar los nodos automáticamente. Con la tecla 1 encuadras todo el workflow.' },
+    { x: 60, y: 93.5, t: 'Panel Logs', d: 'Se despliega tras una ejecución y muestra, paso a paso, qué ha hecho cada nodo y cuánto ha tardado. Ideal para encontrar errores.' }
+  ];
+  const mapa = document.getElementById('editor-mapa');
+  const info = document.getElementById('editor-info');
+  let actual = 0;
+  mapa.insertAdjacentHTML('beforeend', ZONAS.map((z, i) =>
+    `<button class="hot${i === 0 ? ' pulse' : ''}" type="button" style="left:${z.x}%;top:${z.y}%" aria-label="${i + 1}: ${z.t}" aria-pressed="false" data-i="${i}">${i + 1}</button>`).join(''));
+  const botones = [...mapa.querySelectorAll('.hot')];
+  const mostrar = i => {
+    actual = (i + ZONAS.length) % ZONAS.length;
+    botones.forEach((b, j) => { b.setAttribute('aria-pressed', j === actual); b.classList.remove('pulse'); });
+    const z = ZONAS[actual];
+    info.innerHTML = `<h3><b>${actual + 1}</b>${z.t}</h3><p>${z.d}</p>
+      <div class="nav"><button type="button" data-mv="-1">← Anterior</button><button type="button" data-mv="1">Siguiente →</button></div>`;
+  };
+  mapa.addEventListener('click', e => { const b = e.target.closest('.hot'); if (b) mostrar(+b.dataset.i); });
+  info.addEventListener('click', e => { const b = e.target.closest('[data-mv]'); if (b) mostrar(actual + +b.dataset.mv); });
+  mostrar(0);
+  botones[0].classList.add('pulse');
+}
+</script>
+</body>
+</html>

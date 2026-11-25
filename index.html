@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aprende n8n desde cero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="css/estilos.css">
+</head>
+<body data-page="inicio" data-root="">
+<header class="top">
+  <a class="logo" href="index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <section class="hero">
+      <div>
+        <span class="kicker">Tutorial práctico · desde cero</span>
+        <h1>Automatiza tu trabajo con n8n</h1>
+        <p class="lead">Aprende a conectar aplicaciones y crear automatizaciones arrastrando nodos, sin necesidad de ser programador. Empezamos por lo básico y lo instalamos en tu propio ordenador.</p>
+        <p style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn" href="modulos/01-que-es-n8n.html">Empezar el módulo 1 →</a>
+          <a class="btn ghost" href="modulos/02-instalacion-docker.html">Ir a la instalación</a>
+        </p>
+      </div>
+      <div class="fig" role="img" aria-label="Ejemplo de workflow: cada mañana, leer noticias, resumir con IA y enviar por Telegram">
+        <svg viewBox="0 0 600 380" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <defs>
+            <pattern id="pt" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="#ffffff22"/></pattern>
+            <linearGradient id="nd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a3156"/><stop offset="1" stop-color="#36223f"/></linearGradient>
+          </defs>
+          <rect width="600" height="380" fill="url(#pt)"/>
+          <g fill="none" stroke="#ffffff55" stroke-width="2.5">
+            <path id="w1" d="M118 120 C170 120 170 120 222 120"/>
+            <path id="w2" d="M298 120 C360 120 340 250 402 250"/>
+            <path id="w3" d="M298 120 C360 120 340 120 402 120" stroke-dasharray="5 6" stroke="#ffffff33"/>
+            <path id="w4" d="M478 250 C520 250 520 250 530 250"/>
+          </g>
+          <g fill="#ffb547">
+            <circle r="6"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#w1"/></animateMotion></circle>
+            <circle r="6"><animateMotion dur="2.6s" begin="-1.3s" repeatCount="indefinite"><mpath href="#w2"/></animateMotion></circle>
+          </g>
+          <!-- Nodo trigger -->
+          <g transform="translate(42 82)">
+            <rect x="4" y="8" width="76" height="76" rx="38" ry="22" fill="#00000033"/>
+            <path d="M38 0h20a20 20 0 0 1 20 20v36a20 20 0 0 1-20 20H38A38 38 0 0 1 38 0z" fill="url(#nd)" stroke="#ea4b71" stroke-width="2.5"/>
+            <circle cx="42" cy="38" r="16" fill="none" stroke="#fff" stroke-width="2.5"/><path d="M42 28v10l7 5" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <text x="39" y="106" text-anchor="middle" fill="#fff" font-family="Inter" font-size="14" font-weight="600">Cada mañana</text>
+            <text x="39" y="124" text-anchor="middle" fill="#ffffffaa" font-family="Inter" font-size="12">Trigger</text>
+          </g>
+          <!-- RSS -->
+          <g transform="translate(222 82)">
+            <rect x="4" y="8" width="76" height="76" rx="18" fill="#00000033"/>
+            <rect width="76" height="76" rx="18" fill="url(#nd)" stroke="#ffffff66" stroke-width="2"/>
+            <circle cx="26" cy="50" r="5" fill="#ffb547"/><path d="M24 34a18 18 0 0 1 18 18M24 22a30 30 0 0 1 30 30" stroke="#ffb547" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <text x="38" y="106" text-anchor="middle" fill="#fff" font-family="Inter" font-size="14" font-weight="600">Leer noticias</text>
+            <text x="38" y="124" text-anchor="middle" fill="#ffffffaa" font-family="Inter" font-size="12">RSS</text>
+          </g>
+          <!-- IA -->
+          <g transform="translate(402 212)">
+            <rect x="4" y="8" width="76" height="76" rx="18" fill="#00000033"/>
+            <rect width="76" height="76" rx="18" fill="url(#nd)" stroke="#b9a2ff" stroke-width="2.5"/>
+            <path d="M38 18l5 13 13 5-13 5-5 13-5-13-13-5 13-5z" fill="#b9a2ff"/>
+            <text x="38" y="106" text-anchor="middle" fill="#fff" font-family="Inter" font-size="14" font-weight="600">Resumir con IA</text>
+            <text x="38" y="124" text-anchor="middle" fill="#ffffffaa" font-family="Inter" font-size="12">AI Agent</text>
+          </g>
+          <!-- Telegram -->
+          <g transform="translate(402 82)">
+            <rect width="76" height="76" rx="18" fill="none" stroke="#ffffff33" stroke-width="2" stroke-dasharray="5 6"/>
+            <text x="38" y="45" text-anchor="middle" fill="#ffffff66" font-family="Sora" font-size="26">+</text>
+            <text x="38" y="106" text-anchor="middle" fill="#ffffff88" font-family="Inter" font-size="13">Añade otro nodo</text>
+          </g>
+          <g transform="translate(532 230)">
+            <rect width="40" height="40" rx="12" fill="#ea4b71"/><path d="M11 21l17-8-5 16-4-5-8-3z" fill="#fff"/>
+            <text x="20" y="62" text-anchor="middle" fill="#fff" font-family="Inter" font-size="13" font-weight="600">Telegram</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <h2>¿Qué vas a aprender?</h2>
+    <p>El tutorial avanza de forma progresiva: cada módulo se apoya en el anterior e incluye ejemplos, comandos listos para copiar y un pequeño test o lista de comprobación. Tu progreso se guarda en este navegador.</p>
+    <div id="lista-modulos" class="mods"></div>
+
+    <div class="note info"><p><strong>Qué necesitas:</strong> un ordenador con Windows 10/11, macOS o Linux, conexión a Internet y ganas de experimentar. No hace falta saber programar; en los módulos avanzados veremos algo de JavaScript.</p></div>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Contenido revisado en noviembre de 2026 · Comprueba siempre la <a href="https://docs.n8n.io/">documentación oficial</a></footer>
+<script src="js/main.js"></script>
+</body>
+</html>

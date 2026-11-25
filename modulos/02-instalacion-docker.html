@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 2 · Instalar n8n con Docker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m2" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 2 · 30–45 minutos</span>
+    <h1>Instalar n8n en local con Docker</h1>
+    <p class="lead">Al terminar este módulo tendrás n8n funcionando en tu ordenador, en <code>http://localhost:5678</code>, con tus workflows guardados de forma permanente.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#por-que">Por qué Docker</a><a href="#requisitos">Requisitos</a><a href="#version">Versión</a><a href="#instalar">Instalar n8n</a><a href="#primer-acceso">Primer acceso</a><a href="#gestionar">Actualizar y parar</a><a href="#postgres">PostgreSQL</a><a href="#problemas">Problemas</a><a href="#checklist">Checklist</a>
+    </nav>
+
+    <h2 id="por-que">¿Qué es Docker y por qué lo usamos?</h2>
+    <p><strong>Docker</strong> permite ejecutar programas dentro de <strong>contenedores</strong>: "cajas" aisladas que traen todo lo necesario para funcionar. Así no tienes que instalar Node.js ni otras dependencias en tu sistema.</p>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Imagen</h3><p style="margin:0">La "plantilla" del programa, que se descarga una vez. La de n8n se llama <code>n8nio/n8n</code>.</p></div>
+      <div class="card"><h3 style="margin-top:0">Contenedor</h3><p style="margin:0">Una copia en marcha de esa imagen. Puedes pararla, borrarla y crearla de nuevo.</p></div>
+      <div class="card"><h3 style="margin-top:0">Volumen</h3><p style="margin:0">Un espacio de almacenamiento que sobrevive al contenedor. Ahí guardaremos workflows y credenciales.</p></div>
+    </div>
+    <div class="note info"><p>Es la vía recomendada por n8n: la instalación mediante npm deja de funcionar a partir de n8n 3.0. Docker, además, se usa igual en Windows, macOS y Linux.</p></div>
+
+    <h2 id="requisitos">Paso 1 · Instalar Docker</h2>
+    <p>Elige tu sistema operativo:</p>
+    <div class="tabs">
+      <div role="tablist" aria-label="Sistema operativo">
+        <button role="tab" id="t-win" aria-controls="p-win">Windows</button>
+        <button role="tab" id="t-mac" aria-controls="p-mac">macOS</button>
+        <button role="tab" id="t-lin" aria-controls="p-lin">Linux</button>
+      </div>
+      <div role="tabpanel" id="p-win" aria-labelledby="t-win">
+        <ol class="steps">
+          <li>Docker Desktop necesita <strong>WSL 2</strong> (el subsistema de Linux de Windows). Abre <strong>PowerShell como administrador</strong> y ejecuta:
+            <div class="code"><div class="h">PowerShell<button class="copy" type="button">Copiar</button></div><pre><code>wsl --install</code></pre></div>
+            Reinicia el equipo cuando termine.</li>
+          <li>Descarga <strong>Docker Desktop</strong> desde <a href="https://www.docker.com/products/docker-desktop/">docker.com</a> e instálalo dejando marcada la opción <em>Use WSL 2</em>.</li>
+          <li>Abre Docker Desktop y espera a que indique que el motor está en marcha (<em>Engine running</em>).</li>
+        </ol>
+      </div>
+      <div role="tabpanel" id="p-mac" aria-labelledby="t-mac">
+        <ol class="steps">
+          <li>Descarga <strong>Docker Desktop</strong> desde <a href="https://www.docker.com/products/docker-desktop/">docker.com</a>. Elige la versión de tu procesador: <em>Apple Silicon</em> (M1, M2, M3…) o <em>Intel</em>.</li>
+          <li>Abre el archivo <code>.dmg</code> y arrastra Docker a <strong>Aplicaciones</strong>.</li>
+          <li>Abre Docker desde Aplicaciones, acepta los permisos y espera a que el icono de la ballena en la barra de menús deje de moverse.</li>
+        </ol>
+      </div>
+      <div role="tabpanel" id="p-lin" aria-labelledby="t-lin">
+        <p>Puedes instalar Docker Desktop para Linux, o bien Docker Engine con el script oficial (habitual en servidores y en Ubuntu/Debian):</p>
+        <div class="code"><div class="h">Terminal<button class="copy" type="button">Copiar</button></div><pre><code><span class="c"># Instala Docker Engine y el plugin Docker Compose</span>
+curl -fsSL https://get.docker.com | sh
+
+<span class="c"># Permite usar docker sin sudo (cierra sesión y vuelve a entrar después)</span>
+sudo usermod -aG docker $USER</code></pre></div>
+      </div>
+    </div>
+    <p>Comprueba que todo está bien abriendo una terminal (en Windows, PowerShell) y ejecutando:</p>
+    <div class="code"><div class="h">Terminal<button class="copy" type="button">Copiar</button></div><pre><code>docker --version
+docker compose version</code></pre></div>
+    <p>Si ambos comandos muestran un número de versión, Docker está listo.</p>
+
+    <h2 id="version">Paso 2 · ¿Qué versión de n8n instalar?</h2>
+    <p>n8n publica versiones nuevas casi cada semana, en dos canales:</p>
+    <ul>
+      <li><strong>Stable</strong>: la versión recomendada para el uso diario. Es la que descarga Docker por defecto (<code>n8nio/n8n</code> o <code>n8nio/n8n:latest</code>). En noviembre de 2026 corresponde a la rama <strong>2.49</strong>.</li>
+      <li><strong>Beta</strong> (<code>n8nio/n8n:next</code>): trae novedades antes, pero puede tener errores.</li>
+    </ul>
+    <div class="note warn"><p>Ya existe una versión mayor <strong>n8n 3.x</strong> con cambios incompatibles. Antes de instalar, revisa en las <a href="https://github.com/n8n-io/n8n/releases">versiones de GitHub</a> cuál es la estable actual. Si quieres que todo coincida exactamente con este tutorial, <strong>fija una versión concreta</strong> (por ejemplo <code>n8nio/n8n:2.49.6</code>).</p></div>
+
+    <h2 id="instalar">Paso 3 · Poner n8n en marcha</h2>
+    <p>Hay dos formas. Te recomendamos la <strong>opción B</strong> porque guarda la configuración en un archivo y es más fácil de mantener, pero la A es perfecta para una primera prueba.</p>
+    <div class="tabs">
+      <div role="tablist" aria-label="Forma de instalación">
+        <button role="tab" id="t-a" aria-controls="p-a">Opción A · docker run</button>
+        <button role="tab" id="t-b" aria-controls="p-b">Opción B · Docker Compose (recomendada)</button>
+      </div>
+
+      <div role="tabpanel" id="p-a" aria-labelledby="t-a">
+        <p>Primero creamos el volumen donde se guardarán los datos, y después arrancamos el contenedor:</p>
+        <div class="code"><div class="h">Terminal (macOS / Linux)<button class="copy" type="button">Copiar</button></div><pre><code>docker volume create n8n_data
+
+docker run -it --rm \
+  --name n8n \
+  -p 5678:5678 \
+  -e GENERIC_TIMEZONE="Europe/Madrid" \
+  -e TZ="Europe/Madrid" \
+  -e N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true \
+  -v n8n_data:/home/node/.n8n \
+  n8nio/n8n</code></pre></div>
+        <p>En <strong>PowerShell</strong> la barra invertida <code>\</code> no sirve para partir líneas; usa el acento grave <code>`</code>:</p>
+        <div class="code"><div class="h">PowerShell (Windows)<button class="copy" type="button">Copiar</button></div><pre><code>docker volume create n8n_data
+
+docker run -it --rm `
+  --name n8n `
+  -p 5678:5678 `
+  -e GENERIC_TIMEZONE="Europe/Madrid" `
+  -e TZ="Europe/Madrid" `
+  -e N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true `
+  -v n8n_data:/home/node/.n8n `
+  n8nio/n8n</code></pre></div>
+        <h3>¿Qué significa cada parte?</h3>
+        <ul class="lines">
+          <li><code>docker volume create n8n_data</code><span>Crea un volumen llamado <em>n8n_data</em> para guardar tus datos.</span></li>
+          <li><code>-it</code><span>Modo interactivo: verás los mensajes de n8n en la terminal.</span></li>
+          <li><code>--rm</code><span>Borra el contenedor al pararlo. Tus datos no se pierden porque están en el volumen.</span></li>
+          <li><code>--name n8n</code><span>Pone nombre al contenedor para identificarlo fácilmente.</span></li>
+          <li><code>-p 5678:5678</code><span>Conecta el puerto 5678 de tu ordenador con el del contenedor. Por eso abrimos <code>localhost:5678</code>.</span></li>
+          <li><code>TZ</code> y <code>GENERIC_TIMEZONE</code><span>Zona horaria del sistema y de los nodos con horario (Schedule). Cámbiala si no estás en España peninsular.</span></li>
+          <li><code>N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS</code><span>Protege el archivo de configuración con permisos seguros.</span></li>
+          <li><code>-v n8n_data:/home/node/.n8n</code><span>Monta el volumen en la carpeta donde n8n guarda workflows, credenciales y la clave de cifrado.</span></li>
+          <li><code>n8nio/n8n</code><span>La imagen oficial de n8n (versión estable).</span></li>
+        </ul>
+        <p>Para pararlo, pulsa <code>Ctrl + C</code> en la terminal.</p>
+      </div>
+
+      <div role="tabpanel" id="p-b" aria-labelledby="t-b">
+        <p><strong>Docker Compose</strong> describe los contenedores en un archivo de texto. Así no tienes que recordar comandos largos.</p>
+        <ol class="steps">
+          <li>Crea una carpeta para el proyecto y entra en ella:
+            <div class="code"><div class="h">Terminal<button class="copy" type="button">Copiar</button></div><pre><code>mkdir n8n
+cd n8n</code></pre></div></li>
+          <li>Dentro, crea un archivo llamado <code>.env</code> con tus ajustes:
+            <div class="code"><div class="h">.env<button class="copy" type="button">Copiar</button></div><pre><code><span class="c"># Versión de n8n (latest = estable actual; o fija una, p. ej. 2.49.6)</span>
+<span class="v">N8N_VERSION</span>=<span class="s">latest</span>
+<span class="c"># Zona horaria</span>
+<span class="v">TZ</span>=<span class="s">Europe/Madrid</span></code></pre></div></li>
+          <li>Crea el archivo <code>compose.yml</code>:
+            <div class="code"><div class="h">compose.yml<button class="copy" type="button">Copiar</button></div><pre><code><span class="k">services:</span>
+  <span class="k">n8n:</span>
+    <span class="v">image:</span> <span class="s">n8nio/n8n:${N8N_VERSION}</span>
+    <span class="v">container_name:</span> n8n
+    <span class="v">restart:</span> unless-stopped
+    <span class="v">ports:</span>
+      - <span class="s">"5678:5678"</span>
+    <span class="v">environment:</span>
+      - TZ=${TZ}
+      - GENERIC_TIMEZONE=${TZ}
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+    <span class="v">volumes:</span>
+      - n8n_data:/home/node/.n8n
+
+<span class="k">volumes:</span>
+  <span class="k">n8n_data:</span></code></pre></div></li>
+          <li>Arranca n8n en segundo plano y comprueba que está en marcha:
+            <div class="code"><div class="h">Terminal<button class="copy" type="button">Copiar</button></div><pre><code>docker compose up -d
+docker compose ps</code></pre></div>
+            En la columna <em>STATUS</em> debe aparecer <code>Up</code>.</li>
+        </ol>
+        <h3>¿Qué hace cada parte del compose?</h3>
+        <ul class="lines">
+          <li><code>image</code><span>La imagen y versión a usar; la toma de la variable <code>N8N_VERSION</code> del <code>.env</code>.</span></li>
+          <li><code>restart: unless-stopped</code><span>Arranca n8n solo al encender el ordenador o si se cae, salvo que lo pares tú.</span></li>
+          <li><code>ports</code><span>Igual que <code>-p</code>: expone n8n en <code>localhost:5678</code>.</span></li>
+          <li><code>environment</code><span>Variables de configuración (zona horaria, permisos).</span></li>
+          <li><code>volumes</code><span>Guarda los datos en el volumen <em>n8n_data</em> para que no se pierdan.</span></li>
+        </ul>
+        <div class="note info"><p>El repositorio oficial de n8n ofrece un <code>compose</code> más completo que añade servicios de <em>sandbox</em> para ejecutar código y un buscador web para el asistente de IA. Es más complejo y requiere varias claves; lo veremos como ampliación en el módulo de IA.</p></div>
+      </div>
+    </div>
+
+    <h2 id="primer-acceso">Paso 4 · Primer acceso</h2>
+    <ol class="steps">
+      <li>Abre el navegador y entra en <a href="http://localhost:5678">http://localhost:5678</a>. Los primeros segundos puede tardar mientras n8n arranca.</li>
+      <li>Crea la <strong>cuenta de propietario</strong> (<em>owner</em>): email, nombre y contraseña. Esta cuenta solo existe en tu instalación local; guarda bien la contraseña.</li>
+      <li>Responde (o salta) el breve cuestionario inicial. n8n puede ofrecerte activar gratis funciones extra con una licencia comunitaria a cambio de tu email; es opcional.</li>
+      <li>Verás la pantalla de <strong>Overview</strong> con el botón para crear tu primer workflow. ¡n8n ya funciona!</li>
+    </ol>
+    <div class="note tip"><p>Puedes ver la versión instalada en el menú inferior izquierdo, en <em>Help → About n8n</em>. En el módulo 3 recorreremos el editor con calma.</p></div>
+
+    <h2 id="gestionar">Actualizar, parar y desinstalar</h2>
+    <p>Con Docker Compose (ejecuta los comandos dentro de la carpeta <code>n8n</code>):</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Quiero…</th><th>Comando</th></tr></thead>
+      <tbody>
+        <tr><td>Parar n8n</td><td><code>docker compose stop</code></td></tr>
+        <tr><td>Volver a arrancarlo</td><td><code>docker compose start</code></td></tr>
+        <tr><td>Ver los mensajes (logs)</td><td><code>docker compose logs -f n8n</code></td></tr>
+        <tr><td>Actualizar a la última versión</td><td><code>docker compose pull</code> y después <code>docker compose up -d</code></td></tr>
+        <tr><td>Quitar el contenedor (conserva datos)</td><td><code>docker compose down</code></td></tr>
+        <tr><td>Borrarlo todo, datos incluidos</td><td><code>docker compose down -v</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note warn"><p><strong>Cuidado:</strong> <code>down -v</code> elimina el volumen con tus workflows y credenciales, y no se puede deshacer. Antes de actualizar a una versión mayor (por ejemplo de 2.x a 3.x), exporta tus workflows y lee la guía de cambios incompatibles.</p></div>
+
+    <h2 id="postgres">Opcional · Usar PostgreSQL</h2>
+    <p>Por defecto n8n guarda todo en <strong>SQLite</strong>, un archivo dentro del volumen. Para aprender es más que suficiente. Si más adelante quieres una base de datos más robusta, este <code>compose.yml</code> añade PostgreSQL:</p>
+    <div class="code"><div class="h">compose.yml con PostgreSQL<button class="copy" type="button">Copiar</button></div><pre><code><span class="k">services:</span>
+  <span class="k">postgres:</span>
+    <span class="v">image:</span> <span class="s">postgres:18</span>
+    <span class="v">restart:</span> unless-stopped
+    <span class="v">environment:</span>
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    <span class="v">volumes:</span>
+      - pg_data:/var/lib/postgresql
+    <span class="v">healthcheck:</span>
+      <span class="v">test:</span> [<span class="s">"CMD-SHELL"</span>, <span class="s">"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"</span>]
+      <span class="v">interval:</span> 5s
+      <span class="v">retries:</span> 10
+
+  <span class="k">n8n:</span>
+    <span class="v">image:</span> <span class="s">n8nio/n8n:${N8N_VERSION}</span>
+    <span class="v">restart:</span> unless-stopped
+    <span class="v">ports:</span>
+      - <span class="s">"5678:5678"</span>
+    <span class="v">environment:</span>
+      - TZ=${TZ}
+      - GENERIC_TIMEZONE=${TZ}
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+    <span class="v">volumes:</span>
+      - n8n_data:/home/node/.n8n
+    <span class="v">depends_on:</span>
+      <span class="k">postgres:</span>
+        <span class="v">condition:</span> service_healthy
+
+<span class="k">volumes:</span>
+  <span class="k">n8n_data:</span>
+  <span class="k">pg_data:</span></code></pre></div>
+    <p>Y añade al <code>.env</code> (cambia la contraseña por una tuya):</p>
+    <div class="code"><div class="h">.env<button class="copy" type="button">Copiar</button></div><pre><code><span class="v">POSTGRES_USER</span>=<span class="s">n8n</span>
+<span class="v">POSTGRES_PASSWORD</span>=<span class="s">cambia-esta-clave</span>
+<span class="v">POSTGRES_DB</span>=<span class="s">n8n</span></code></pre></div>
+    <div class="note info"><p>Aunque uses PostgreSQL, <strong>mantén el volumen <code>n8n_data</code></strong>: ahí está la clave de cifrado de tus credenciales. Si la pierdes, n8n no podrá leerlas.</p></div>
+
+    <h2 id="problemas">Problemas frecuentes</h2>
+    <div class="faq">
+      <details><summary>«Cannot connect to the Docker daemon» o «docker: command not found»</summary><div><p>Docker no está arrancado o no está instalado. Abre Docker Desktop y espera a que el motor esté en marcha. En Linux, prueba <code>sudo systemctl start docker</code>.</p></div></details>
+      <details><summary>«port is already allocated» (el puerto 5678 está ocupado)</summary><div><p>Otro programa (o otro contenedor de n8n) usa ese puerto. Cambia la parte izquierda del mapeo, por ejemplo <code>"5679:5678"</code>, y entra en <code>localhost:5679</code>. Para ver contenedores en marcha: <code>docker ps</code>.</p></div></details>
+      <details><summary>En Windows Docker Desktop no arranca</summary><div><p>Comprueba que WSL 2 está instalado (<code>wsl --status</code>) y que la virtualización está activada en la BIOS/UEFI. Actualiza WSL con <code>wsl --update</code>.</p></div></details>
+      <details><summary>«permission denied» al usar docker en Linux</summary><div><p>Tu usuario no está en el grupo <em>docker</em>. Ejecuta <code>sudo usermod -aG docker $USER</code>, cierra sesión y vuelve a entrar.</p></div></details>
+      <details><summary>Los workflows programados se ejecutan a una hora incorrecta</summary><div><p>Revisa <code>GENERIC_TIMEZONE</code> y <code>TZ</code>. Además, cada workflow tiene su propia zona horaria en <em>Settings</em> del workflow.</p></div></details>
+      <details><summary>He perdido mis workflows al reiniciar</summary><div><p>Probablemente arrancaste el contenedor sin el volumen (<code>-v n8n_data:/home/node/.n8n</code>). Añádelo siempre. Para ver tus volúmenes: <code>docker volume ls</code>.</p></div></details>
+    </div>
+
+    <h2 id="checklist">Checklist final</h2>
+    <p>Marca cada punto a medida que lo compruebes:</p>
+    <ul class="check" id="checklist">
+      <li><label><input type="checkbox"><span><code>docker --version</code> muestra una versión</span></label></li>
+      <li><label><input type="checkbox"><span><code>docker compose version</code> muestra una versión</span></label></li>
+      <li><label><input type="checkbox"><span>He creado los archivos <code>.env</code> y <code>compose.yml</code> (o he usado <code>docker run</code>)</span></label></li>
+      <li><label><input type="checkbox"><span><code>docker compose ps</code> muestra n8n en estado <em>Up</em></span></label></li>
+      <li><label><input type="checkbox"><span>Abro <code>http://localhost:5678</code> y veo n8n</span></label></li>
+      <li><label><input type="checkbox"><span>He creado la cuenta de propietario y guardado la contraseña</span></label></li>
+      <li><label><input type="checkbox"><span>He parado y arrancado n8n, y mis datos siguen ahí</span></label></li>
+    </ul>
+    <p class="check-msg" id="check-msg" aria-live="polite"></p>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="01-que-es-n8n.html">← Módulo 1: ¿Qué es n8n?</a>
+      <a class="btn" href="03-el-editor.html">Módulo 3: El editor →</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Comandos basados en la <a href="https://docs.n8n.io/hosting/installation/docker/">guía oficial de Docker</a> · Revisado en noviembre de 2026</footer>
+<script src="../js/main.js"></script>
+</body>
+</html>
