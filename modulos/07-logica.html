@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 7 · Lógica en n8n: IF, Switch, Merge y bucles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m7" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 7 · 60 minutos</span>
+    <h1>Lógica: decisiones, ramas y bucles</h1>
+    <p class="lead">Hasta ahora tus workflows iban en línea recta. En la vida real hay que decidir: si el pedido está pagado, envíalo; si no, recuerda el pago. En este módulo aprenderás a dividir el camino con <strong>IF</strong> y <strong>Switch</strong>, a quedarte solo con lo que te interesa con <strong>Filter</strong>, a volver a juntar los datos con <strong>Merge</strong> y a repetir pasos con <strong>Loop Over Items</strong>.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#ramas">Ramas</a><a href="#if">IF</a><a href="#condiciones">Condiciones</a><a href="#switch">Switch</a><a href="#filter">Filter</a><a href="#enrutador">Enrutador</a><a href="#merge">Merge</a><a href="#mezclador">Mezclador</a><a href="#bucles">Bucles</a><a href="#practica">Práctica</a><a href="#solucion">Solución</a><a href="#problemas">Problemas</a><a href="#test">Test</a>
+    </nav>
+
+    <div class="note info"><p>Basado en la documentación y el código de <strong>n8n 2.x</strong> (estable 2.49.7 en noviembre de 2026). Versiones de nodo usadas: <em>If</em> 2.4, <em>Switch</em> 3.5, <em>Filter</em> 2.4, <em>Merge</em> 3.2, <em>Loop Over Items</em> 3 y <em>Wait</em> 1.1.</p></div>
+
+    <h2 id="ramas">Ramas: cuando el workflow se divide</h2>
+    <p>Algunos nodos tienen <strong>más de una salida</strong>. Cada salida es el comienzo de una <strong>rama</strong>: un camino distinto del workflow. Cada item sale solo por la salida que le corresponde.</p>
+    <div class="items-demo" aria-label="Ejemplo: seis pedidos entran en un nodo IF; cuatro salen por true y dos por false">
+      <div class="col"><h4>Entran 6 pedidos</h4><span class="it">101 · pagado</span><span class="it">102 · sin pagar</span><span class="it">103 · pagado</span><span class="it">104 · pagado</span><span class="it">105 · pagado</span><span class="it">106 · sin pagar</span></div>
+      <div class="mid"><span class="nd-box">IF<br><small>¿pagado?</small></span></div>
+      <div class="col"><h4>Salida true (4)</h4><span class="it ok">101</span><span class="it ok">103</span><span class="it ok">104</span><span class="it ok">105</span><h4 style="margin-top:8px">Salida false (2)</h4><span class="it">102</span><span class="it">106</span></div>
+    </div>
+    <p>Tres reglas que conviene recordar:</p>
+    <ul>
+      <li><strong>Una rama sin items no se ejecuta.</strong> Si ningún pedido está sin pagar, los nodos de la rama <em>false</em> simplemente no corren.</li>
+      <li><strong>Las ramas se ejecutan una detrás de otra</strong>, no a la vez: n8n termina una rama antes de empezar la siguiente, de la que está más arriba en el lienzo a la de más abajo (a igual altura, primero la de la izquierda).</li>
+      <li><strong>Mover nodos cambia el orden</strong> en que se ejecutan las ramas. Casi nunca importa, pero tenlo en cuenta si una rama depende de otra.</li>
+    </ul>
+
+    <h2 id="if">IF: dos caminos, sí o no</h2>
+    <p>El nodo <strong>If</strong> comprueba una o varias condiciones con cada item. Si se cumplen, el item sale por <strong>true</strong>; si no, por <strong>false</strong>. Es el «si… entonces… si no…» de n8n.</p>
+    <h3>Sus parámetros</h3>
+    <ul class="lines">
+      <li><code>Conditions</code><span>Cada condición tiene tres partes: el valor a comprobar (normalmente una expresión como <code>{{ $json.pagado }}</code>), el tipo y la comparación (<em>is true</em>, <em>is greater than</em>…) y, si hace falta, el valor con el que comparar.</span></li>
+      <li><code>AND</code> / <code>OR</code><span>Con varias condiciones eliges cómo se combinan: <strong>AND</strong> exige que se cumplan todas; <strong>OR</strong>, que se cumpla al menos una.</span></li>
+      <li><code>Convert types where required</code><span>Si el valor no es del tipo de la comparación (un número que llega como texto, <code>"120"</code>), n8n intenta convertirlo en lugar de dar error.</span></li>
+      <li><code>Ignore Case</code><span>Opción para no distinguir mayúsculas de minúsculas al comparar textos. Viene activada.</span></li>
+    </ul>
+    <div class="note tip"><p>Arrastra el campo desde el panel <em>Input</em> hasta el primer hueco de la condición: n8n escribe la expresión y, muchas veces, elige ya el tipo correcto.</p></div>
+
+    <h2 id="condiciones">Tipos y comparaciones</h2>
+    <p>Cada comparación pertenece a un tipo de dato. Elige el tipo que tiene el campo de verdad, no el que parece: <code>120</code> es un número, pero <code>"120"</code> es un texto.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Tipo</th><th>Comparaciones más usadas</th><th>Ejemplo</th></tr></thead>
+      <tbody>
+        <tr><td>String (texto)</td><td><em>is equal to</em>, <em>is not equal to</em>, <em>contains</em>, <em>starts with</em>, <em>ends with</em>, <em>matches regex</em>, <em>is empty</em>, <em>is not empty</em></td><td><code>{{ $json.pais }}</code> <em>is equal to</em> <code>ES</code></td></tr>
+        <tr><td>Number</td><td><em>is equal to</em>, <em>is greater than</em>, <em>is less than</em>, <em>is greater than or equal to</em>, <em>is less than or equal to</em></td><td><code>{{ $json.importe }}</code> <em>is greater than or equal to</em> <code>100</code></td></tr>
+        <tr><td>Boolean</td><td><em>is true</em>, <em>is false</em></td><td><code>{{ $json.pagado }}</code> <em>is true</em></td></tr>
+        <tr><td>Date &amp; Time</td><td><em>is after</em>, <em>is before</em>, <em>is after or equal to</em>…</td><td><code>{{ $json.fecha }}</code> <em>is after</em> <code>{{ $today }}</code></td></tr>
+        <tr><td>Array</td><td><em>contains</em>, <em>length equal to</em>, <em>is empty</em>…</td><td><code>{{ $json.etiquetas }}</code> <em>contains</em> <code>vip</code></td></tr>
+        <tr><td>Todos</td><td><em>exists</em>, <em>does not exist</em></td><td>¿Tiene el item el campo <code>telefono</code>?</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3>El error más común: tipos que no coinciden</h3>
+    <p>Por defecto, n8n es estricto. Si comparas un texto con una comparación de números, el nodo se detiene con un error como este:</p>
+    <div class="code"><div class="h">Error del nodo If</div><pre><code>Wrong type: 'ES' is a string but was expecting a number [condition 0, item 0]</code></pre></div>
+    <p>Tienes tres salidas: elegir el tipo correcto, convertir el valor en la expresión (<code>{{ $json.importe.toNumber() }}</code>) o activar <em>Convert types where required</em>. Pruébalo en el enrutador de abajo.</p>
+
+    <h2 id="switch">Switch: más de dos caminos</h2>
+    <p>Cuando hay más de dos opciones (país, tipo de cliente, prioridad…), encadenar varios If se vuelve un lío. El nodo <strong>Switch</strong> tiene una salida por cada regla.</p>
+    <ul class="lines">
+      <li><code>Mode: Rules</code><span>Escribes una regla por salida, con las mismas condiciones que el If. Es el modo habitual.</span></li>
+      <li><code>Mode: Expression</code><span>Una expresión devuelve directamente el número de la salida (0, 1, 2…). Útil si ya tienes ese número en los datos.</span></li>
+      <li><code>Rename Output</code><span>Pon nombre a cada salida («España», «Portugal»). El nombre se ve en el lienzo y hace el workflow mucho más legible.</span></li>
+      <li><code>Fallback Output</code><span>Qué hacer con los items que no cumplen ninguna regla: <em>None</em> (se descartan, la opción por defecto), <em>Extra Output</em> (una salida más) o mandarlos a la salida de una regla.</span></li>
+      <li><code>Send data to all matching outputs</code><span>Por defecto, un item sale solo por la <strong>primera</strong> regla que cumple. Con esta opción sale por todas las que cumpla.</span></li>
+    </ul>
+    <div class="note warn"><p>Si dejas <em>Fallback Output</em> en <em>None</em>, los items que no encajan en ninguna regla desaparecen sin avisar. Para no perder nada, usa <em>Extra Output</em> y conecta algo a esa salida.</p></div>
+
+    <h2 id="filter">Filter: quedarte solo con lo que interesa</h2>
+    <p>El nodo <strong>Filter</strong> usa las mismas condiciones que el If, pero tiene <strong>una sola salida</strong>: deja pasar los items que cumplen y descarta el resto.</p>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Usa If</h3><p style="margin:0">Cuando los items que <strong>no</strong> cumplen también tienen que hacer algo (recordar el pago, avisar de un error).</p></div>
+      <div class="card"><h3 style="margin-top:0">Usa Filter</h3><p style="margin:0">Cuando los que no cumplen sobran: «solo los emails con adjunto», «solo los pedidos de más de 50 €». El workflow queda más limpio.</p></div>
+    </div>
+    <p>Si Filter descarta todos los items, los nodos siguientes no se ejecutan: es una forma limpia de parar el workflow cuando no hay nada que hacer.</p>
+
+    <h2 id="enrutador">Enrutador: prueba If, Switch y Filter</h2>
+    <p>Estos son los 6 pedidos de la práctica. Elige un nodo, configura las condiciones y mira por qué salida va cada pedido. Prueba también a provocar un error de tipos (por ejemplo, <code>pais</code> con <em>is greater than</em>) y a activar <em>Convert types where required</em>.</p>
+    <div class="router" id="router">
+      <div class="router-cfg">
+        <div class="router-tipo" role="group" aria-label="Nodo">
+          <button type="button" data-nodo="if" aria-pressed="true">If</button><button type="button" data-nodo="switch" aria-pressed="false">Switch</button><button type="button" data-nodo="filter" aria-pressed="false">Filter</button>
+        </div>
+        <div id="rt-conds"></div>
+        <div class="router-opts" id="rt-opts"></div>
+      </div>
+      <div class="router-out">
+        <h4>Resultado <span class="router-st" id="rt-st"></span></h4>
+        <div class="router-cols" id="rt-cols" aria-live="polite"></div>
+        <p class="router-msg" id="rt-msg"></p>
+      </div>
+    </div>
+    <details class="lab-otros"><summary>Ver los 6 pedidos en JSON</summary><pre class="router-data" id="rt-data"></pre></details>
+    <div class="note info"><p>El enrutador imita las comparaciones más comunes y los mensajes de error de n8n. En n8n hay más tipos (fechas, listas, objetos) y comparaciones.</p></div>
+
+    <h2 id="merge">Merge: volver a juntar los datos</h2>
+    <p>El nodo <strong>Merge</strong> tiene varias entradas (2 por defecto, hasta 10 con <em>Number of Inputs</em>) y una salida. Sirve para dos cosas distintas: reunir las ramas que se separaron con If o Switch, y combinar datos de dos fuentes (pedidos y clientes, por ejemplo).</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Mode</th><th>Qué hace</th><th>Ejemplo</th></tr></thead>
+      <tbody>
+        <tr><td><em>Append</em></td><td>Pone los items de una entrada detrás de los de la otra, sin mezclarlos.</td><td>Reunir las ramas «España», «Portugal» y «Resto».</td></tr>
+        <tr><td><em>Combine</em> → <em>Matching Fields</em></td><td>Une los items que tienen el mismo valor en un campo, como un BUSCARV de Excel.</td><td>Añadir el nombre del cliente a cada pedido por <code>cliente_id</code>.</td></tr>
+        <tr><td><em>Combine</em> → <em>Position</em></td><td>Une el primer item con el primero, el segundo con el segundo…</td><td>Dos listas que sabes que van en el mismo orden.</td></tr>
+        <tr><td><em>Combine</em> → <em>All Possible Combinations</em></td><td>Cada item de una entrada con cada item de la otra.</td><td>3 tallas × 4 colores = 12 variantes.</td></tr>
+        <tr><td><em>SQL Query</em></td><td>Combina las entradas con una consulta SQL (<code>input1</code>, <code>input2</code>…).</td><td>Para quien ya sabe SQL.</td></tr>
+        <tr><td><em>Choose Branch</em></td><td>Espera a que lleguen todas las entradas y deja pasar los datos de una sola.</td><td>Esperar a que termine otra rama antes de seguir.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3>Combinar por campo: el tipo de salida</h3>
+    <p>Con <em>Matching Fields</em> indicas el campo que tienen en común (<em>Fields to Match</em>) y eliges qué items salen en <em>Output Type</em>:</p>
+    <ul class="lines">
+      <li><code>Keep Matches</code><span>Solo los que tienen pareja en la otra entrada, unidos en un item.</span></li>
+      <li><code>Keep Non-Matches</code><span>Solo los que <strong>no</strong> tienen pareja. Ideal para encontrar huecos: clientes sin pedidos, pedidos sin cliente.</span></li>
+      <li><code>Keep Everything</code><span>Las parejas unidas y, además, los que no tienen pareja de las dos entradas.</span></li>
+      <li><code>Enrich Input 1</code><span>Todos los items de la entrada 1, con los datos de su pareja si la tienen. El más usado para «completar» datos.</span></li>
+      <li><code>Enrich Input 2</code><span>Lo mismo, pero partiendo de la entrada 2.</span></li>
+    </ul>
+    <div class="note info"><p><strong>¿Cuándo se ejecuta Merge?</strong> Espera a que terminen las ramas que le envían datos. Si una rama no envía ningún item (por ejemplo, ningún pedido es de «Resto»), Merge sigue con lo que ha llegado. La excepción es <em>Choose Branch</em>, que necesita datos en todas sus entradas.</p></div>
+
+    <h2 id="mezclador">Mezclador: prueba los modos de Merge</h2>
+    <p>La entrada 1 son los pedidos pagados; la entrada 2, los clientes. Fíjate en que el pedido 105 es de un cliente que no está en la lista (el 4) y en que el cliente 5 no tiene pedidos.</p>
+    <div class="merger" id="merger">
+      <div class="merger-in"><h4>Input 1 · pedidos (<span id="mg-n1"></span>)</h4><pre id="mg-in1"></pre><h4>Input 2 · clientes (<span id="mg-n2"></span>)</h4><pre id="mg-in2"></pre></div>
+      <div class="merger-par">
+        <h4>Parameters · Merge</h4>
+        <div class="hook-f"><label for="mg-mode">Mode</label><select id="mg-mode"><option value="append">Append</option><option value="combine" selected>Combine</option><option value="chooseBranch">Choose Branch</option></select></div>
+        <div class="hook-f" data-mg="combine"><label for="mg-by">Combine By</label><select id="mg-by"><option value="fields" selected>Matching Fields</option><option value="position">Position</option><option value="all">All Possible Combinations</option></select></div>
+        <div class="hook-f" data-mg="fields"><span class="lbl">Fields to Match</span><code class="mg-field">cliente_id</code></div>
+        <div class="hook-f" data-mg="fields"><label for="mg-join">Output Type</label><select id="mg-join"><option value="keepMatches">Keep Matches</option><option value="keepNonMatches">Keep Non-Matches</option><option value="keepEverything">Keep Everything</option><option value="enrichInput1" selected>Enrich Input 1</option><option value="enrichInput2">Enrich Input 2</option></select></div>
+        <div class="hook-f" data-mg="nonmatch"><label for="mg-from">Output Data From</label><select id="mg-from"><option value="both">Both Inputs Appended Together</option><option value="input1">Input 1</option><option value="input2">Input 2</option></select></div>
+        <label class="hook-sw" data-mg="position"><input type="checkbox" id="mg-unpaired"><span>Include Any Unpaired Items</span></label>
+        <div class="hook-f" data-mg="choose"><label for="mg-use">Use Data of Input</label><select id="mg-use"><option value="1">Input 1</option><option value="2">Input 2</option></select></div>
+        <p class="mg-help" id="mg-help"></p>
+      </div>
+      <div class="merger-out"><h4>Output · <span id="mg-n"></span></h4><pre id="mg-out"></pre></div>
+    </div>
+    <div class="note info"><p>El mezclador reproduce la lógica de Merge 3.2 con los datos de ejemplo (cuando un campo coincide en las dos entradas, gana la entrada 2, como en n8n por defecto). No incluye el modo <em>SQL Query</em>.</p></div>
+
+    <h2 id="bucles">Bucles: repetir pasos</h2>
+    <p>Buena noticia: <strong>casi nunca necesitas un bucle</strong>. Como viste en el módulo 5, cada nodo se ejecuta una vez por item automáticamente. Si llegan 50 contactos a un nodo de Gmail, envía 50 emails.</p>
+    <p>Los bucles hacen falta en casos concretos:</p>
+    <ul>
+      <li><strong>Límites de una API:</strong> enviar de 10 en 10, con una pausa entre lotes, para no superar el máximo de peticiones por minuto.</li>
+      <li><strong>Nodos que no recorren todos los items:</strong> algunas operaciones se ejecutan una sola vez, como el nodo <em>Code</em> en modo <em>Run Once for All Items</em>, <em>RSS Read</em> (una vez por URL pedida) o algunas inserciones en bases de datos.</li>
+      <li><strong>Repetir hasta que se cumpla algo:</strong> pedir páginas a una API hasta que no queden más.</li>
+    </ul>
+    <h3>Loop Over Items</h3>
+    <p>El nodo <strong>Loop Over Items</strong> (antes <em>Split in Batches</em>) reparte los items en lotes y los pasa de uno en uno. Tiene dos salidas:</p>
+    <ul class="lines">
+      <li><code>loop</code><span>Sale un lote en cada vuelta. Aquí conectas lo que quieras repetir, y el <strong>último nodo de la vuelta se conecta otra vez a la entrada</strong> de Loop Over Items.</span></li>
+      <li><code>done</code><span>Cuando no quedan lotes, sale todo lo procesado junto. Aquí sigue el workflow.</span></li>
+      <li><code>Batch Size</code><span>Cuántos items por lote (1 por defecto).</span></li>
+      <li><code>Reset</code><span>Opción para que cada vuelta trate la entrada como un conjunto nuevo. Se usa en bucles «hasta que…» con un If; si la condición de salida nunca se cumple, el bucle no termina.</span></li>
+    </ul>
+    <div class="loopdemo" aria-label="Esquema de Loop Over Items con salidas loop y done">
+      <span class="nd-box">Loop Over Items<small>Batch Size: 2</small></span>
+      <div class="loopdemo-r">
+        <p><b class="tag">loop</b> → Wait (1 s) → Marcar enviado → <span class="back">vuelve a Loop Over Items ↺</span></p>
+        <p><b class="tag ok">done</b> → Pedidos listos (todos los items juntos)</p>
+      </div>
+    </div>
+    <div class="note tip"><p>Para un bucle «hasta que…» sin Loop Over Items, conecta la salida de un nodo a la entrada de otro anterior y pon un <em>If</em> que decida si se vuelve atrás o se sale. Asegúrate de que la condición de salida llegará a cumplirse.</p></div>
+
+    <h2 id="practica">Práctica: pedidos del día</h2>
+    <p>Vas a construir un workflow que reparte los pedidos según estén pagados y el país de destino, añade el coste de envío y los datos del cliente, y los «envía» de dos en dos. Es largo: hazlo por partes y ejecuta cada paso antes de seguir.</p>
+    <div class="flows">
+      <p class="flows-t">Parte A y B · Separar y decidir</p><div class="flow" data-flujo="ab"></div>
+      <p class="flows-t">Parte C · Una rama por país</p><div class="flow" data-flujo="c"></div>
+      <p class="flows-t">Parte D · Juntar y completar</p><div class="flow" data-flujo="d"></div>
+      <p class="flows-t">Parte E · Enviar por lotes</p><div class="flow" data-flujo="e"></div>
+    </div>
+    <h3>Parte A · Los datos</h3>
+    <ol class="steps">
+      <li><strong>Crea el workflow</strong> «Pedidos del día» con un <strong>Trigger manually</strong> llamado <strong>Al pulsar Ejecutar</strong>.</li>
+      <li><strong>Pedidos.</strong> Añade un <em>Edit Fields</em> llamado <strong>Pedidos</strong> en modo <em>JSON</em> con este contenido:
+        <div class="code"><div class="h">JSON Output de «Pedidos»<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "pedidos": [
+    { "id": 101, "cliente_id": 1, "importe": 120, "pagado": true, "pais": "ES", "cupon": "VERANO" },
+    { "id": 102, "cliente_id": 2, "importe": 45.5, "pagado": false, "pais": "ES", "cupon": "" },
+    { "id": 103, "cliente_id": 3, "importe": 80, "pagado": true, "pais": "PT", "cupon": "" },
+    { "id": 104, "cliente_id": 1, "importe": 15, "pagado": true, "pais": "FR", "cupon": "BIENVENIDA" },
+    { "id": 105, "cliente_id": 4, "importe": 60, "pagado": true, "pais": "ES", "cupon": "" },
+    { "id": 106, "cliente_id": 2, "importe": 200, "pagado": false, "pais": "PT", "cupon": "VERANO" }
+  ]
+}</code></pre></div>
+      </li>
+      <li><strong>Separa.</strong> Añade un <strong>Split Out</strong> llamado <strong>Separar pedidos</strong> con <em>Fields To Split Out</em> = <code>pedidos</code>. Ejecuta el paso: 6 items.</li>
+    </ol>
+    <h3>Parte B · If: ¿está pagado?</h3>
+    <ol class="steps">
+      <li><strong>Añade un If</strong> llamado <strong>¿Pagado?</strong>. Condición: arrastra <code>pagado</code> al primer hueco (queda <code>{{ $json.pagado }}</code>) y elige <em>Boolean</em> → <em>is true</em>.</li>
+      <li><strong>Ejecuta el paso.</strong> En el panel de salida verás dos pestañas: <em>True Branch</em> con 4 items (101, 103, 104, 105) y <em>False Branch</em> con 2 (102, 106).</li>
+      <li><strong>Rama false.</strong> Conecta a la salida <em>false</em> un <em>Edit Fields</em> llamado <strong>Recordar pago</strong>, con <em>Include Other Input Fields</em> activado y un campo String <code>aviso</code> = <code>Hola, tu pedido {{ $json.id }} de {{ $json.importe }} € está pendiente de pago.</code></li>
+    </ol>
+    <h3>Parte C · Switch: un camino por país</h3>
+    <ol class="steps">
+      <li><strong>Añade un Switch</strong> a la salida <em>true</em> y llámalo <strong>Según país</strong>. Regla 1: <code>{{ $json.pais }}</code> <em>String</em> → <em>is equal to</em> <code>ES</code>, con <em>Rename Output</em> = <code>España</code>. Regla 2 (botón <em>Add Routing Rule</em>): igual con <code>PT</code> y nombre <code>Portugal</code>.</li>
+      <li><strong>Los que sobran.</strong> En <em>Add option</em> → <em>Fallback Output</em>, elige <em>Extra Output</em> y, en <em>Rename Fallback Output</em>, escribe <code>Resto</code>. Ejecuta el paso: España 2 (101, 105), Portugal 1 (103), Resto 1 (104).</li>
+      <li><strong>Coste de envío.</strong> Conecta a cada salida un <em>Edit Fields</em> con <em>Include Other Input Fields</em> activado y un campo Number <code>envio</code>: <strong>Envío España</strong> = <code>4.95</code>, <strong>Envío Portugal</strong> = <code>7.5</code> y <strong>Envío resto</strong> = <code>15</code>.</li>
+    </ol>
+    <h3>Parte D · Merge: juntar y completar</h3>
+    <ol class="steps">
+      <li><strong>Reúne las ramas.</strong> Añade un <strong>Merge</strong> llamado <strong>Juntar envíos</strong>, deja <em>Mode</em> en <em>Append</em> y pon <em>Number of Inputs</em> = <code>3</code>. Conecta «Envío España» a la entrada 1, «Envío Portugal» a la 2 y «Envío resto» a la 3. Al ejecutarlo: 4 items, en el orden 101, 105, 103, 104.</li>
+      <li><strong>Los clientes.</strong> Desde «Al pulsar Ejecutar», crea una segunda rama (arrastra desde su salida otra vez): un <em>Edit Fields</em> en modo JSON llamado <strong>Clientes</strong> con el contenido de abajo y, detrás, un <em>Split Out</em> llamado <strong>Separar clientes</strong> (<code>clientes</code>).
+        <div class="code"><div class="h">JSON Output de «Clientes»<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "clientes": [
+    { "cliente_id": 1, "nombre": "Lucía Martín", "email": "lucia@ejemplo.com" },
+    { "cliente_id": 2, "nombre": "Jorge Pérez", "email": "jorge@ejemplo.com" },
+    { "cliente_id": 3, "nombre": "Ana Ruiz", "email": "ana@ejemplo.com" }
+  ]
+}</code></pre></div>
+      </li>
+      <li><strong>Añade los datos del cliente.</strong> Otro <strong>Merge</strong> llamado <strong>Añadir cliente</strong>: entrada 1 desde «Juntar envíos» y entrada 2 desde «Separar clientes». <em>Mode</em> = <em>Combine</em>, <em>Combine By</em> = <em>Matching Fields</em>, <em>Fields to Match</em> = <code>cliente_id</code> y <em>Output Type</em> = <em>Enrich Input 1</em>.</li>
+      <li><strong>Ejecuta el workflow</strong> y abre «Añadir cliente»: 4 pedidos, tres con <code>nombre</code> y <code>email</code>; el 105 sin ellos porque el cliente 4 no existe. Cambia temporalmente a <em>Keep Matches</em> y comprueba que el 105 desaparece; después vuelve a <em>Enrich Input 1</em>.</li>
+    </ol>
+    <h3>Parte E · Loop Over Items: enviar de dos en dos</h3>
+    <ol class="steps">
+      <li><strong>Añade Loop Over Items</strong> detrás de «Añadir cliente», llámalo <strong>Por lotes</strong> y pon <em>Batch Size</em> = <code>2</code>.</li>
+      <li><strong>La vuelta.</strong> A la salida <em>loop</em> conecta un <strong>Wait</strong> llamado <strong>Esperar</strong> (<em>After Time Interval</em>, 1 segundo) y detrás un <em>Edit Fields</em> llamado <strong>Marcar enviado</strong> con <em>Include Other Input Fields</em> y tres campos: <code>estado</code> (String) = <code>enviado</code>, <code>total</code> (Number) = <code>{{ ($json.importe + $json.envio).round(2) }}</code> y <code>lote</code> (Number) = <code>{{ $runIndex + 1 }}</code>.</li>
+      <li><strong>Cierra el bucle.</strong> Conecta la salida de «Marcar enviado» a la <strong>entrada</strong> de «Por lotes». Verás la conexión volver hacia atrás.</li>
+      <li><strong>Salida done.</strong> Conecta a la salida <em>done</em> un nodo <strong>No Operation, do nothing</strong> llamado <strong>Pedidos listos</strong>: no hace nada, pero te permite ver el resultado final.</li>
+      <li><strong>Ejecuta el workflow.</strong> «Marcar enviado» se ejecuta 2 veces (lotes 1 y 2) y «Pedidos listos» recibe los 4 pedidos con <code>estado: enviado</code> y su <code>total</code> (124.95, 87.5, 30 y 64.95). En el panel <em>Logs</em> verás cada vuelta.</li>
+    </ol>
+
+    <h2 id="solucion">Solución</h2>
+    <p>Copia y pega este workflow en un lienzo vacío para comparar con el tuyo.</p>
+    <div class="code"><div class="h">Workflow «Pedidos del día» (JSON para pegar en el lienzo)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0001",
+      "name": "Al pulsar Ejecutar"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"pedidos\": [\n    { \"id\": 101, \"cliente_id\": 1, \"importe\": 120, \"pagado\": true, \"pais\": \"ES\", \"cupon\": \"VERANO\" },\n    { \"id\": 102, \"cliente_id\": 2, \"importe\": 45.5, \"pagado\": false, \"pais\": \"ES\", \"cupon\": \"\" },\n    { \"id\": 103, \"cliente_id\": 3, \"importe\": 80, \"pagado\": true, \"pais\": \"PT\", \"cupon\": \"\" },\n    { \"id\": 104, \"cliente_id\": 1, \"importe\": 15, \"pagado\": true, \"pais\": \"FR\", \"cupon\": \"BIENVENIDA\" },\n    { \"id\": 105, \"cliente_id\": 4, \"importe\": 60, \"pagado\": true, \"pais\": \"ES\", \"cupon\": \"\" },\n    { \"id\": 106, \"cliente_id\": 2, \"importe\": 200, \"pagado\": false, \"pais\": \"PT\", \"cupon\": \"VERANO\" }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0002",
+      "name": "Pedidos"
+    },
+    {
+      "parameters": {"fieldToSplitOut": "pedidos", "options": {}},
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [440, 0],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0003",
+      "name": "Separar pedidos"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 4},
+          "conditions": [
+            {
+              "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0004",
+              "leftValue": "={{ $json.pagado }}",
+              "rightValue": "",
+              "operator": {"type": "boolean", "operation": "true", "singleValue": true}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [660, 0],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0005",
+      "name": "¿Pagado?"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 4},
+                "conditions": [
+                  {
+                    "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0006",
+                    "leftValue": "={{ $json.pais }}",
+                    "rightValue": "ES",
+                    "operator": {"type": "string", "operation": "equals"}
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "España"
+            },
+            {
+              "conditions": {
+                "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 4},
+                "conditions": [
+                  {
+                    "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0007",
+                    "leftValue": "={{ $json.pais }}",
+                    "rightValue": "PT",
+                    "operator": {"type": "string", "operation": "equals"}
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Portugal"
+            }
+          ]
+        },
+        "options": {"fallbackOutput": "extra", "renameFallbackOutput": "Resto"}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.5,
+      "position": [880, -100],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0008",
+      "name": "Según país"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0009",
+              "name": "aviso",
+              "value": "=Hola, tu pedido {{ $json.id }} de {{ $json.importe }} € está pendiente de pago.",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [880, 200],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0010",
+      "name": "Recordar pago"
+    },
+    {
+      "parameters": {
+        "assignments": {"assignments": [{"id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0011", "name": "envio", "value": 4.95, "type": "number"}]},
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1100, -300],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0012",
+      "name": "Envío España"
+    },
+    {
+      "parameters": {
+        "assignments": {"assignments": [{"id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0013", "name": "envio", "value": 7.5, "type": "number"}]},
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1100, -100],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0014",
+      "name": "Envío Portugal"
+    },
+    {
+      "parameters": {
+        "assignments": {"assignments": [{"id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0015", "name": "envio", "value": 15, "type": "number"}]},
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1100, 100],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0016",
+      "name": "Envío resto"
+    },
+    {
+      "parameters": {"numberInputs": 3},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [1320, -100],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0017",
+      "name": "Juntar envíos"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"clientes\": [\n    { \"cliente_id\": 1, \"nombre\": \"Lucía Martín\", \"email\": \"lucia@ejemplo.com\" },\n    { \"cliente_id\": 2, \"nombre\": \"Jorge Pérez\", \"email\": \"jorge@ejemplo.com\" },\n    { \"cliente_id\": 3, \"nombre\": \"Ana Ruiz\", \"email\": \"ana@ejemplo.com\" }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 400],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0018",
+      "name": "Clientes"
+    },
+    {
+      "parameters": {"fieldToSplitOut": "clientes", "options": {}},
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [440, 400],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0019",
+      "name": "Separar clientes"
+    },
+    {
+      "parameters": {"mode": "combine", "fieldsToMatchString": "cliente_id", "joinMode": "enrichInput1", "options": {}},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [1540, 0],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0020",
+      "name": "Añadir cliente"
+    },
+    {
+      "parameters": {"batchSize": 2, "options": {}},
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1760, 0],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0021",
+      "name": "Por lotes"
+    },
+    {
+      "parameters": {"amount": 1},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1980, 100],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0022",
+      "name": "Esperar",
+      "webhookId": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0023"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0024", "name": "estado", "value": "enviado", "type": "string"},
+            {
+              "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0025",
+              "name": "total",
+              "value": "={{ ($json.importe + $json.envio).round(2) }}",
+              "type": "number"
+            },
+            {"id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0026", "name": "lote", "value": "={{ $runIndex + 1 }}", "type": "number"}
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2200, 100],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0027",
+      "name": "Marcar enviado"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1980, -100],
+      "id": "d7b2c4e6-7a1f-4b3c-8d5e-6f7a8b9c0028",
+      "name": "Pedidos listos"
+    }
+  ],
+  "connections": {
+    "Al pulsar Ejecutar": {"main": [[{"node": "Pedidos", "type": "main", "index": 0}, {"node": "Clientes", "type": "main", "index": 0}]]},
+    "Pedidos": {"main": [[{"node": "Separar pedidos", "type": "main", "index": 0}]]},
+    "Separar pedidos": {"main": [[{"node": "¿Pagado?", "type": "main", "index": 0}]]},
+    "¿Pagado?": {"main": [[{"node": "Según país", "type": "main", "index": 0}], [{"node": "Recordar pago", "type": "main", "index": 0}]]},
+    "Según país": {
+      "main": [
+        [{"node": "Envío España", "type": "main", "index": 0}],
+        [{"node": "Envío Portugal", "type": "main", "index": 0}],
+        [{"node": "Envío resto", "type": "main", "index": 0}]
+      ]
+    },
+    "Envío España": {"main": [[{"node": "Juntar envíos", "type": "main", "index": 0}]]},
+    "Envío Portugal": {"main": [[{"node": "Juntar envíos", "type": "main", "index": 1}]]},
+    "Envío resto": {"main": [[{"node": "Juntar envíos", "type": "main", "index": 2}]]},
+    "Juntar envíos": {"main": [[{"node": "Añadir cliente", "type": "main", "index": 0}]]},
+    "Clientes": {"main": [[{"node": "Separar clientes", "type": "main", "index": 0}]]},
+    "Separar clientes": {"main": [[{"node": "Añadir cliente", "type": "main", "index": 1}]]},
+    "Añadir cliente": {"main": [[{"node": "Por lotes", "type": "main", "index": 0}]]},
+    "Por lotes": {"main": [[{"node": "Pedidos listos", "type": "main", "index": 0}], [{"node": "Esperar", "type": "main", "index": 0}]]},
+    "Esperar": {"main": [[{"node": "Marcar enviado", "type": "main", "index": 0}]]},
+    "Marcar enviado": {"main": [[{"node": "Por lotes", "type": "main", "index": 0}]]}
+  }
+}</code></pre></div>
+    <p>En la salida de «Añadir cliente» el 105 aparece el último: <em>Enrich Input 1</em> pone primero los pedidos con pareja y después los que no la tienen.</p>
+
+    <h2 id="problemas">Problemas frecuentes</h2>
+    <div class="faq">
+      <details><summary>«Wrong type: '…' is a string but was expecting a number»</summary><div><p>El campo es texto y la comparación es de números (o al revés). Elige el tipo correcto, convierte en la expresión con <code>.toNumber()</code> o activa <em>Convert types where required</em>.</p></div></details>
+      <details><summary>Los nodos de una rama no se ejecutan</summary><div><p>Esa rama no recibió ningún item: es normal. Si necesitas que siga aunque no haya datos, activa <em>Always Output Data</em> en la pestaña <em>Settings</em> del nodo anterior (sale un item vacío) y tenlo en cuenta en los nodos siguientes.</p></div></details>
+      <details><summary>Faltan items después de un Switch</summary><div><p>No cumplían ninguna regla y <em>Fallback Output</em> estaba en <em>None</em>, así que se descartaron. Usa <em>Extra Output</em>. Si esperabas que un item fuera por varias salidas, activa <em>Send data to all matching outputs</em>.</p></div></details>
+      <details><summary>Merge con Matching Fields no une nada</summary><div><p>Los valores del campo no son idénticos: <code>1</code> (número) no es igual a <code>"1"</code> (texto), y los espacios cuentan. Revisa los tipos o activa la opción <em>Fuzzy Compare</em> del Merge, que trata 3 y "3" como iguales.</p></div></details>
+      <details><summary>El texto «Ana» no coincide con «ana» en una condición</summary><div><p>Revisa la opción <em>Ignore Case</em> del nodo (viene activada; si alguien la desactivó, las mayúsculas cuentan). Otra opción es comparar <code>{{ $json.nombre.toLowerCase() }}</code>.</p></div></details>
+      <details><summary>El bucle no termina o se ejecuta una sola vez</summary><div><p>Si se ejecuta una vez, el último nodo de la vuelta no está conectado de nuevo a la entrada de Loop Over Items. Si no termina, revisa la condición de salida de tu If o la opción <em>Reset</em>: con <em>Reset</em> activado, Loop Over Items vuelve a empezar con cada entrada.</p></div></details>
+    </div>
+
+    <h2 id="retos">Retos para practicar</h2>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Reto 1 · Dos condiciones</h3><p style="margin:0">Cambia «¿Pagado?» para que solo vayan por <em>true</em> los pedidos pagados <strong>y</strong> de 20 € o más. ¿Por dónde sale ahora el 104?</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 2 · Francia</h3><p style="margin:0">Añade al Switch una regla <code>FR</code> → «Francia» con envío de 9.9 €, conectada a una cuarta entrada de «Juntar envíos».</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 3 · Clientes sin pedidos</h3><p style="margin:0">Con un Merge en <em>Keep Non-Matches</em>, obtén los pedidos cuyo cliente no está en la lista.</p></div>
+    </div>
+    <details class="term"><summary><i>?</i>Ver las soluciones</summary>
+      <div class="code"><div class="h">Soluciones de los retos<button class="copy" type="button">Copiar</button></div><pre><code><span class="c">// Reto 1 · If con combinación AND</span>
+{{ $json.pagado }}   Boolean → is true
+{{ $json.importe }}  Number → is greater than or equal to → 20
+<span class="c">// El 104 (15 €) sale ahora por false y recibe el aviso de «Recordar pago».</span>
+
+<span class="c">// Reto 2 · Switch: nueva regla</span>
+{{ $json.pais }}  String → is equal to → FR   (Rename Output: Francia)
+<span class="c">// Edit Fields «Envío Francia»: envio = 9.9 · «Juntar envíos»: Number of Inputs = 4</span>
+
+<span class="c">// Reto 3 · Merge</span>
+<span class="c">// Mode: Combine · Combine By: Matching Fields · Fields to Match: cliente_id</span>
+<span class="c">// Output Type: Keep Non-Matches · Output Data From: Input 1</span>
+<span class="c">// Resultado: el pedido 105 (cliente 4)</span></code></pre></div>
+    </details>
+
+    <h3>Comprueba tu práctica</h3>
+    <ul class="check" id="checklist" data-ok="¡Muy bien! Tus workflows ya saben decidir y repetir.">
+      <li><label><input type="checkbox"><span>He separado items en dos ramas con un If y he visto las salidas true y false</span></label></li>
+      <li><label><input type="checkbox"><span>Sé elegir el tipo de comparación correcto y resolver un error «Wrong type»</span></label></li>
+      <li><label><input type="checkbox"><span>He creado un Switch con salidas con nombre y una salida extra (fallback)</span></label></li>
+      <li><label><input type="checkbox"><span>Sé cuándo usar Filter en lugar de If</span></label></li>
+      <li><label><input type="checkbox"><span>He reunido ramas con Merge en modo Append</span></label></li>
+      <li><label><input type="checkbox"><span>He completado datos con Merge por campo (<em>Enrich Input 1</em>)</span></label></li>
+      <li><label><input type="checkbox"><span>He procesado items por lotes con Loop Over Items y he cerrado el bucle</span></label></li>
+    </ul>
+    <p class="check-msg" id="check-msg" aria-live="polite"></p>
+
+    <h2 id="test">Comprueba lo que has aprendido</h2>
+    <div id="quiz" class="quiz"></div>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="06-triggers.html">← Módulo 6: Triggers</a>
+      <a class="btn ghost" href="../index.html">Volver al índice</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Basado en la <a href="https://docs.n8n.io/">documentación oficial</a> de n8n 2.x · Revisado en noviembre de 2026</footer>
+
+<script>
+window.FLUJOS = {
+  ab: [
+    { tipo: 'trig', ico: '▶', t: 'Al pulsar Ejecutar', d: 'Manual Trigger' },
+    { ico: '✎', t: 'Pedidos', d: 'JSON · 1 item' },
+    { ico: '⇶', t: 'Separar pedidos', d: 'Split Out · 6 items' },
+    { ico: '◇', t: '¿Pagado?', d: 'If · true 4 / false 2' },
+    { ico: '✎', t: 'Recordar pago', d: 'Rama false' }
+  ],
+  c: [
+    { ico: '◇', t: 'Según país', d: 'Switch · 3 salidas' },
+    { ico: '✎', t: 'Envío España', d: '4.95 €' },
+    { ico: '✎', t: 'Envío Portugal', d: '7.5 €' },
+    { ico: '✎', t: 'Envío resto', d: '15 €' }
+  ],
+  d: [
+    { ico: '⋈', t: 'Juntar envíos', d: 'Merge · Append · 3 entradas' },
+    { ico: '✎', t: 'Clientes', d: '2.ª rama del trigger' },
+    { ico: '⋈', t: 'Añadir cliente', d: 'Merge · Enrich Input 1' }
+  ],
+  e: [
+    { ico: '↻', t: 'Por lotes', d: 'Loop Over Items · 2' },
+    { ico: '◷', t: 'Esperar', d: 'Wait · 1 s' },
+    { ico: '✎', t: 'Marcar enviado', d: 'Vuelve a «Por lotes»' },
+    { ico: '■', t: 'Pedidos listos', d: 'Salida done' }
+  ]
+};
+window.QUIZ = [
+  { p: 'Un If recibe 5 items y ninguno cumple la condición. ¿Qué pasa con los nodos de la rama true?', o: ['Se ejecutan con un item vacío', 'No se ejecutan', 'El workflow da error'], c: 1, e: 'Una rama que no recibe items no se ejecuta. Si lo necesitas, puedes activar Always Output Data en el nodo anterior.' },
+  { p: 'Quieres enviar cada pedido por un camino distinto según su país (España, Portugal, Francia y el resto). ¿Qué nodo usas?', o: ['Varios If encadenados', 'Un Switch con una regla por país y Fallback Output: Extra Output', 'Un Filter'], c: 1, e: 'El Switch tiene una salida por regla y la salida extra recoge los que no cumplen ninguna. Con If encadenados funcionaría, pero es más lioso.' },
+  { p: 'Comparas {{ $json.importe }} con «is greater than» 50 y el nodo dice «Wrong type: \'80\' is a string but was expecting a number». ¿Qué ocurre?', o: ['El importe llega como texto ("80")', 'El 50 está mal escrito', 'El campo importe no existe'], c: 0, e: 'El valor es un texto. Conviértelo con .toNumber() o activa Convert types where required.' },
+  { p: 'Tienes pedidos y clientes, y quieres añadir a cada pedido el nombre de su cliente sin perder los pedidos de clientes desconocidos. ¿Qué configuración de Merge eliges?', o: ['Append', 'Combine por Matching Fields con Keep Matches', 'Combine por Matching Fields con Enrich Input 1 (pedidos en la entrada 1)'], c: 2, e: 'Enrich Input 1 devuelve todos los items de la entrada 1, completados con su pareja cuando existe. Keep Matches eliminaría los pedidos sin cliente.' },
+  { p: '¿Qué diferencia hay entre If y Filter?', o: ['Filter solo admite una condición', 'If tiene salida para los que no cumplen; Filter los descarta', 'No hay diferencia'], c: 1, e: 'Ambos usan las mismas condiciones. If tiene dos salidas (true y false); Filter solo deja pasar los que cumplen.' },
+  { p: 'Has montado un Loop Over Items, pero solo procesa el primer lote. ¿Qué es lo más probable?', o: ['El Batch Size es demasiado grande', 'El último nodo de la vuelta no está conectado otra vez a la entrada de Loop Over Items', 'Falta un nodo Wait'], c: 1, e: 'El bucle avanza cuando los datos vuelven a la entrada de Loop Over Items. Sin esa conexión, solo se procesa el primer lote.' }
+];
+</script>
+<script src="../js/main.js"></script>
+<script>
+{
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const PEDIDOS = [
+    { id: 101, cliente_id: 1, importe: 120, pagado: true, pais: 'ES', cupon: 'VERANO' },
+    { id: 102, cliente_id: 2, importe: 45.5, pagado: false, pais: 'ES', cupon: '' },
+    { id: 103, cliente_id: 3, importe: 80, pagado: true, pais: 'PT', cupon: '' },
+    { id: 104, cliente_id: 1, importe: 15, pagado: true, pais: 'FR', cupon: 'BIENVENIDA' },
+    { id: 105, cliente_id: 4, importe: 60, pagado: true, pais: 'ES', cupon: '' },
+    { id: 106, cliente_id: 2, importe: 200, pagado: false, pais: 'PT', cupon: 'VERANO' }
+  ];
+
+  /* ===== Enrutador: If, Switch y Filter ===== */
+  const CAMPOS = ['id', 'cliente_id', 'importe', 'pagado', 'pais', 'cupon'];
+  const OPS = {
+    string: [['equals', 'is equal to'], ['notEquals', 'is not equal to'], ['contains', 'contains'], ['startsWith', 'starts with'], ['endsWith', 'ends with'], ['empty', 'is empty', 1], ['notEmpty', 'is not empty', 1]],
+    number: [['equals', 'is equal to'], ['notEquals', 'is not equal to'], ['gt', 'is greater than'], ['lt', 'is less than'], ['gte', 'is greater than or equal to'], ['lte', 'is less than or equal to']],
+    boolean: [['true', 'is true', 1], ['false', 'is false', 1]]
+  };
+  const TIPO_NOMBRE = { string: 'String', number: 'Number', boolean: 'Boolean' };
+  const art = t => t === 'array' || t === 'object' ? 'an ' + t : 'a ' + t;
+  const tipoDe = v => Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v;
+  class ErrTipo extends Error {}
+
+  const st = {
+    nodo: 'if', comb: 'and', loose: false, ignoreCase: true,
+    conds: [{ campo: 'pagado', op: 'boolean:true', valor: '' }],
+    rules: [
+      { campo: 'pais', op: 'string:equals', valor: 'ES', nombre: 'España' },
+      { campo: 'pais', op: 'string:equals', valor: 'PT', nombre: 'Portugal' },
+      { campo: 'importe', op: 'number:gte', valor: '100', nombre: '' }
+    ],
+    nRules: 2, fallback: 'extra', all: false
+  };
+
+  const convertir = (v, tipo, quien, ci, ii, loose) => {
+    const t = tipoDe(v);
+    if (t === tipo) return v;
+    const suf = `[condition ${ci}, item ${ii}]`;
+    if (!loose) throw new ErrTipo(`Wrong type: '${v}' is ${art(t)} but was expecting ${art(tipo)} ${suf}`);
+    if (tipo === 'string') return String(v);
+    if (tipo === 'number') { const n = Number(v); if (v !== '' && typeof v !== 'boolean' && !Number.isNaN(n)) return n; }
+    if (tipo === 'boolean') { if (v === 'true' || v === 1 || v === '1') return true; if (v === 'false' || v === 0 || v === '0') return false; }
+    throw new ErrTipo(`Conversion error: the ${t} '${v}' can't be converted to ${art(tipo)} ${suf}`);
+  };
+  const evaluar = (c, item, ci, ii) => {
+    const [tipo, op] = c.op.split(':');
+    const unario = OPS[tipo].find(o => o[0] === op)[2];
+    let a = convertir(item[c.campo], tipo, 'left', ci, ii, st.loose);
+    let b = null;
+    if (!unario) {
+      let raw = c.valor;
+      if (tipo === 'number') {
+        const n = Number(String(raw).replace(',', '.'));
+        if (String(raw).trim() === '' || Number.isNaN(n)) throw new ErrTipo(`Wrong type: '${raw}' is a string but was expecting a number [condition ${ci}, item ${ii}]`);
+        b = n;
+      } else b = String(raw);
+    }
+    if (tipo === 'string' && st.ignoreCase) { a = a.toLowerCase(); if (b !== null) b = b.toLowerCase(); }
+    switch (op) {
+      case 'equals': return a === b;
+      case 'notEquals': return a !== b;
+      case 'contains': return a.includes(b);
+      case 'startsWith': return a.startsWith(b);
+      case 'endsWith': return a.endsWith(b);
+      case 'empty': return a === '';
+      case 'notEmpty': return a !== '';
+      case 'gt': return a > b;
+      case 'lt': return a < b;
+      case 'gte': return a >= b;
+      case 'lte': return a <= b;
+      case 'true': return a === true;
+      case 'false': return a === false;
+    }
+    return false;
+  };
+  const cumple = (conds, item, ii) => {
+    const r = conds.map((c, ci) => evaluar(c, item, ci, ii));
+    return st.comb === 'and' ? r.every(Boolean) : r.some(Boolean);
+  };
+
+  const opSelect = (val, id) => `<select id="${id}" data-k="op" aria-label="Comparación">` + Object.entries(OPS).map(([t, ops]) => `<optgroup label="${TIPO_NOMBRE[t]}">` + ops.map(o => `<option value="${t}:${o[0]}"${val === t + ':' + o[0] ? ' selected' : ''}>${TIPO_NOMBRE[t]} · ${o[1]}</option>`).join('') + '</optgroup>').join('') + '</select>';
+  const filaCond = (c, i, grupo, extra = '') => {
+    const [tipo, op] = c.op.split(':');
+    const unario = OPS[tipo].find(o => o[0] === op)[2];
+    return `<div class="rt-row" data-g="${grupo}" data-i="${i}">
+      ${extra}
+      <select data-k="campo" aria-label="Campo">${CAMPOS.map(f => `<option value="${f}"${f === c.campo ? ' selected' : ''}>$json.${f}</option>`).join('')}</select>
+      ${opSelect(c.op, `rt-op-${grupo}-${i}`)}
+      <input type="text" data-k="valor" value="${esc(c.valor)}" aria-label="Valor" placeholder="valor"${unario ? ' hidden' : ''}>
+    </div>`;
+  };
+  const elCfg = document.getElementById('rt-conds'), elOpts = document.getElementById('rt-opts');
+  const pintarCfg = () => {
+    document.querySelectorAll('#router [data-nodo]').forEach(b => b.setAttribute('aria-pressed', b.dataset.nodo === st.nodo));
+    if (st.nodo === 'switch') {
+      elCfg.innerHTML = '<h4>Routing Rules</h4>' + st.rules.slice(0, st.nRules).map((r, i) =>
+        `<div class="rt-rule"><span class="rt-n">Regla ${i + 1} → salida ${i}</span>${filaCond(r, i, 'r')}<input type="text" class="rt-name" data-g="r" data-i="${i}" data-k="nombre" value="${esc(r.nombre)}" placeholder="Rename Output (opcional)" aria-label="Nombre de la salida ${i}"></div>`).join('') +
+        `<div class="sim-btns"><button class="btn sm ghost" type="button" id="rt-addr"${st.nRules >= 3 ? ' disabled' : ''}>+ Add Routing Rule</button><button class="btn sm ghost" type="button" id="rt-delr"${st.nRules <= 1 ? ' disabled' : ''}>Quitar la última</button></div>`;
+      elOpts.innerHTML = `<h4>Options</h4>
+        <div class="hook-f"><label for="rt-fb">Fallback Output</label><select id="rt-fb"><option value="none"${st.fallback === 'none' ? ' selected' : ''}>None (default)</option><option value="extra"${st.fallback === 'extra' ? ' selected' : ''}>Extra Output</option></select></div>
+        <label class="hook-sw"><input type="checkbox" id="rt-all"${st.all ? ' checked' : ''}><span>Send data to all matching outputs</span></label>
+        <label class="hook-sw"><input type="checkbox" id="rt-ic"${st.ignoreCase ? ' checked' : ''}><span>Ignore Case</span></label>
+        <label class="hook-sw"><input type="checkbox" id="rt-loose"${st.loose ? ' checked' : ''}><span>Convert types where required</span></label>`;
+    } else {
+      elCfg.innerHTML = '<h4>Conditions</h4>' + st.conds.map((c, i) => filaCond(c, i, 'c', i ? `<select class="rt-comb" data-k="comb" aria-label="Combinar condiciones"><option value="and"${st.comb === 'and' ? ' selected' : ''}>AND</option><option value="or"${st.comb === 'or' ? ' selected' : ''}>OR</option></select>` : '')).join('') +
+        `<div class="sim-btns"><button class="btn sm ghost" type="button" id="rt-addc"${st.conds.length >= 2 ? ' disabled' : ''}>+ Add condition</button><button class="btn sm ghost" type="button" id="rt-delc"${st.conds.length <= 1 ? ' disabled' : ''}>Quitar la segunda</button></div>`;
+      elOpts.innerHTML = `<label class="hook-sw"><input type="checkbox" id="rt-loose"${st.loose ? ' checked' : ''}><span>Convert types where required</span></label>
+        <label class="hook-sw"><input type="checkbox" id="rt-ic"${st.ignoreCase ? ' checked' : ''}><span>Ignore Case</span></label>`;
+    }
+  };
+  const chip = p => `<span class="rt-chip">#${p.id} · ${String(p.importe).replace('.', ',')} € · ${p.pais}${p.pagado ? '' : ' · sin pagar'}</span>`;
+  const pintarRes = () => {
+    const cols = document.getElementById('rt-cols'), msg = document.getElementById('rt-msg'), stEl = document.getElementById('rt-st');
+    let salidas = [], error = null, nota = '';
+    try {
+      if (st.nodo === 'if') {
+        const t = [], f = [];
+        PEDIDOS.forEach((p, i) => (cumple(st.conds, p, i) ? t : f).push(p));
+        salidas = [['true', t], ['false', f]];
+        nota = 'Cada pedido sale solo por una de las dos ramas.';
+      } else if (st.nodo === 'filter') {
+        const k = [], d = [];
+        PEDIDOS.forEach((p, i) => (cumple(st.conds, p, i) ? k : d).push(p));
+        salidas = [['Kept (sigue)', k], ['Descartados', d, 'off']];
+        nota = 'Filter solo tiene una salida: los descartados no siguen por ningún sitio.';
+      } else {
+        const reglas = st.rules.slice(0, st.nRules);
+        const outs = reglas.map(() => []), resto = [], perdidos = [];
+        PEDIDOS.forEach((p, ii) => {
+          let alguna = false;
+          for (let ri = 0; ri < reglas.length; ri++) {
+            const prev = st.comb; st.comb = 'and';
+            const ok = cumple([reglas[ri]], p, ii); st.comb = prev;
+            if (ok) { outs[ri].push(p); alguna = true; if (!st.all) break; }
+          }
+          if (!alguna) (st.fallback === 'extra' ? resto : perdidos).push(p);
+        });
+        salidas = reglas.map((r, i) => [r.nombre.trim() || String(i), outs[i]]);
+        if (st.fallback === 'extra') salidas.push(['Fallback', resto]);
+        if (perdidos.length) salidas.push(['Descartados (sin regla)', perdidos, 'off']);
+        nota = st.all ? 'Con «Send data to all matching outputs», un pedido puede salir por varias salidas.' : 'Cada pedido sale por la primera regla que cumple.';
+        if (perdidos.length) nota += ' Ojo: con Fallback Output en None, los que no cumplen ninguna regla se pierden.';
+      }
+    } catch (e) {
+      if (!(e instanceof ErrTipo)) throw e;
+      error = e.message;
+    }
+    document.getElementById('router').classList.toggle('fail', !!error);
+    if (error) {
+      stEl.textContent = 'Error'; stEl.className = 'router-st bad';
+      cols.innerHTML = `<div class="rt-err"><strong>${esc(error)}</strong><span>${st.loose ? 'Ni convirtiendo el tipo se puede comparar: elige otra comparación.' : "Try changing the type of comparison. Alternatively you can enable 'Convert types where required'."}</span></div>`;
+      msg.textContent = 'El nodo se detiene y no sale ningún item.';
+      return;
+    }
+    stEl.textContent = 'OK'; stEl.className = 'router-st ok';
+    cols.innerHTML = salidas.map(([n, lista, cls]) => `<div class="rt-col${cls ? ' ' + cls : ''}"><h5>${esc(n)} <small>${lista.length} item${lista.length === 1 ? '' : 's'}</small></h5>${lista.map(chip).join('') || '<span class="rt-empty">Sin items: esta rama no se ejecuta</span>'}</div>`).join('');
+    msg.textContent = nota;
+  };
+  const leer = e => {
+    const t = e.target;
+    if (t.id === 'rt-loose') st.loose = t.checked;
+    else if (t.id === 'rt-ic') st.ignoreCase = t.checked;
+    else if (t.id === 'rt-all') st.all = t.checked;
+    else if (t.id === 'rt-fb') st.fallback = t.value;
+    else if (t.dataset.k === 'comb') st.comb = t.value;
+    else if (t.dataset.k) {
+      const row = t.closest('[data-g]') || t;
+      const lista = row.dataset.g === 'r' ? st.rules : st.conds;
+      const obj = lista[+row.dataset.i];
+      obj[t.dataset.k] = t.value;
+      if (t.dataset.k === 'op') {
+        const [tipo, op] = t.value.split(':');
+        const inp = row.querySelector('[data-k=valor]');
+        if (inp) inp.hidden = !!OPS[tipo].find(o => o[0] === op)[2];
+      }
+    }
+    pintarRes();
+  };
+  const router = document.getElementById('router');
+  router.addEventListener('input', leer);
+  router.addEventListener('change', leer);
+  router.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.nodo) { st.nodo = b.dataset.nodo; }
+    else if (b.id === 'rt-addc') st.conds.push({ campo: 'importe', op: 'number:gte', valor: '50' });
+    else if (b.id === 'rt-delc') st.conds.length = 1;
+    else if (b.id === 'rt-addr') st.nRules = Math.min(3, st.nRules + 1);
+    else if (b.id === 'rt-delr') st.nRules = Math.max(1, st.nRules - 1);
+    else return;
+    pintarCfg(); pintarRes();
+  });
+  document.getElementById('rt-data').textContent = JSON.stringify(PEDIDOS, null, 2);
+  pintarCfg(); pintarRes();
+
+  /* ===== Mezclador: Merge ===== */
+  const IN1 = [
+    { id: 101, cliente_id: 1, importe: 120 },
+    { id: 105, cliente_id: 4, importe: 60 },
+    { id: 103, cliente_id: 3, importe: 80 },
+    { id: 104, cliente_id: 1, importe: 15 }
+  ];
+  const IN2 = [
+    { cliente_id: 1, nombre: 'Lucía Martín' },
+    { cliente_id: 2, nombre: 'Jorge Pérez' },
+    { cliente_id: 3, nombre: 'Ana Ruiz' },
+    { cliente_id: 5, nombre: 'Marta Gil' }
+  ];
+  const $m = id => document.getElementById(id);
+  const linea = arr => '[\n' + arr.map(o => '  ' + JSON.stringify(o)).join(',\n') + '\n]';
+  $m('mg-in1').textContent = linea(IN1); $m('mg-in2').textContent = linea(IN2);
+  $m('mg-n1').textContent = IN1.length + ' items'; $m('mg-n2').textContent = IN2.length + ' items';
+  const AYUDA = {
+    append: 'Los 4 pedidos y, detrás, los 4 clientes: 8 items sin mezclar.',
+    keepMatches: 'Solo los pedidos con cliente conocido, unidos a sus datos. El 105 desaparece.',
+    keepNonMatches: 'Lo que no tiene pareja: el pedido 105 y los clientes 2 y 5. Con «Both» n8n añade el campo _source.',
+    keepEverything: 'Parejas unidas y, después, lo que no tiene pareja de ambas entradas.',
+    enrichInput1: 'Todos los pedidos; los que tienen cliente, con su nombre. Los que no tienen pareja van al final.',
+    enrichInput2: 'Todos los clientes; los que tienen pedidos, con los datos de cada pedido.',
+    position: 'Une por orden: pedido 1 con cliente 1, pedido 2 con cliente 2… aunque no tengan nada que ver. El cliente_id de la entrada 2 sustituye al del pedido.',
+    all: 'Cada pedido con cada cliente: 4 × 4 = 16 items.',
+    chooseBranch: 'Espera a las dos entradas y deja pasar solo los datos de la elegida.'
+  };
+  const pintarMerge = () => {
+    const mode = $m('mg-mode').value, by = $m('mg-by').value, join = $m('mg-join').value, from = $m('mg-from').value;
+    const vis = {
+      combine: mode === 'combine', fields: mode === 'combine' && by === 'fields',
+      nonmatch: mode === 'combine' && by === 'fields' && join === 'keepNonMatches',
+      position: mode === 'combine' && by === 'position', choose: mode === 'chooseBranch'
+    };
+    document.querySelectorAll('#merger [data-mg]').forEach(el => { el.hidden = !vis[el.dataset.mg]; });
+    let out = [], clave = mode;
+    if (mode === 'append') out = [...IN1, ...IN2];
+    else if (mode === 'chooseBranch') out = $m('mg-use').value === '1' ? IN1 : IN2;
+    else if (by === 'position') {
+      clave = 'position';
+      const n = $m('mg-unpaired').checked ? Math.max(IN1.length, IN2.length) : Math.min(IN1.length, IN2.length);
+      for (let i = 0; i < n; i++) out.push({ ...(IN1[i] || {}), ...(IN2[i] || {}) });
+    } else if (by === 'all') {
+      clave = 'all';
+      IN1.forEach(a => IN2.forEach(b => out.push({ ...a, ...b })));
+    } else {
+      clave = join;
+      const pares = [], usados2 = new Set(), sin1 = [];
+      IN1.forEach(a => {
+        const m = IN2.map((b, i) => [b, i]).filter(([b]) => b.cliente_id === a.cliente_id);
+        if (m.length) m.forEach(([b, i]) => { pares.push([a, b]); usados2.add(i); });
+        else sin1.push(a);
+      });
+      const sin2 = IN2.filter((b, i) => !usados2.has(i));
+      const unidos = pares.map(([a, b]) => ({ ...a, ...b }));
+      if (join === 'keepMatches') out = unidos;
+      else if (join === 'keepEverything') out = [...unidos, ...sin1, ...sin2];
+      else if (join === 'enrichInput1') out = [...unidos, ...sin1];
+      else if (join === 'enrichInput2') out = [...pares.map(([a, b]) => ({ ...b, ...a })), ...sin2];
+      else out = from === 'input1' ? sin1 : from === 'input2' ? sin2 : [...sin1.map(o => ({ ...o, _source: 'input1' })), ...sin2.map(o => ({ ...o, _source: 'input2' }))];
+    }
+    $m('mg-out').textContent = out.length ? linea(out) : '[]';
+    $m('mg-n').textContent = out.length + (out.length === 1 ? ' item' : ' items');
+    $m('mg-help').textContent = AYUDA[clave] || '';
+  };
+  $m('merger').addEventListener('change', pintarMerge);
+  $m('merger').addEventListener('input', pintarMerge);
+  pintarMerge();
+}
+</script>
+</body>
+</html>

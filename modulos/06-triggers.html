@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 6 · Triggers en n8n</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m6" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 6 · 50 minutos</span>
+    <h1>Triggers: cuándo arranca un workflow</h1>
+    <p class="lead">Hasta ahora has lanzado tus workflows a mano. En este módulo aprenderás a que arranquen solos: a una hora fija, cuando otra aplicación los llama, cuando alguien rellena un formulario o cuando pasa algo en una app. Y verás por qué hay que <strong>publicar</strong> el workflow para que todo eso funcione.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#tipos">Tipos de trigger</a><a href="#prueba">Prueba y producción</a><a href="#schedule">Schedule</a><a href="#planificador">Planificador</a><a href="#webhook">Webhook</a><a href="#probador">Probador</a><a href="#form">Form</a><a href="#apps">Triggers de apps</a><a href="#publicar">Publicar</a><a href="#practica">Práctica</a><a href="#solucion">Solución</a><a href="#problemas">Problemas</a><a href="#test">Test</a>
+    </nav>
+
+    <div class="note info"><p>Basado en la documentación y el código de <strong>n8n 2.x</strong> (estable 2.49.7 en noviembre de 2026). Versiones de nodo usadas: <em>Schedule Trigger</em> 1.4, <em>Webhook</em> 2.2, <em>n8n Form Trigger</em> 2.6.</p></div>
+
+    <h2 id="tipos">Qué es un trigger y cuáles hay</h2>
+    <p>El <strong>trigger</strong> (disparador) es el primer nodo del workflow: decide <strong>cuándo</strong> empieza una ejecución y con <strong>qué datos</strong>. Lo reconoces en el lienzo por su forma redondeada a la izquierda y porque no tiene entrada.</p>
+    <p>Un workflow puede tener <strong>varios triggers</strong>. Cada ejecución empieza solo por uno de ellos: el que se haya disparado.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Tipo</th><th>Arranca cuando…</th><th>Nodos de ejemplo</th></tr></thead>
+      <tbody>
+        <tr><td>Manual</td><td>Pulsas <em>Execute workflow</em> en el editor.</td><td><em>Trigger manually</em> (módulos 4 y 5)</td></tr>
+        <tr><td>Programado</td><td>Llega una hora o pasa un intervalo.</td><td><em>Schedule Trigger</em></td></tr>
+        <tr><td>Llamada HTTP</td><td>Otra aplicación llama a una URL de n8n.</td><td><em>Webhook</em></td></tr>
+        <tr><td>Formulario</td><td>Alguien envía un formulario web que n8n crea por ti.</td><td><em>n8n Form Trigger</em> («On form submission»)</td></tr>
+        <tr><td>Evento de una app</td><td>Pasa algo en otro servicio: un email nuevo, una fila nueva, un mensaje…</td><td><em>Gmail Trigger</em>, <em>Google Sheets Trigger</em>, <em>Telegram Trigger</em></td></tr>
+        <tr><td>Interno de n8n</td><td>Lo llama otro workflow, falla un workflow o alguien escribe en un chat.</td><td><em>When Executed by Another Workflow</em>, <em>Error Trigger</em> (módulo 11), <em>Chat Trigger</em> (módulo 10)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note tip"><p>En el panel de nodos (tecla <kbd>N</kbd>) los triggers aparecen en la categoría <em>Triggers</em>. Si el workflow está vacío, n8n te pide primero un trigger: es lo que ves al pulsar <em>Add first step</em>.</p></div>
+
+    <h2 id="prueba">La idea clave: modo prueba y modo producción</h2>
+    <p>Todos los triggers automáticos funcionan de dos maneras. Entender la diferencia te ahorrará muchas horas de «¿por qué no se ejecuta?».</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th></th><th>Prueba (test)</th><th>Producción</th></tr></thead>
+      <tbody>
+        <tr><td>Para qué</td><td>Construir y depurar el workflow.</td><td>Funcionar de verdad, sin que estés delante.</td></tr>
+        <tr><td>Cómo se activa</td><td>Con <em>Execute step</em>, <em>Execute workflow</em> o <em>Listen for test event</em>.</td><td>Al <strong>publicar</strong> el workflow (<kbd>Shift</kbd> + <kbd>P</kbd>).</td></tr>
+        <tr><td>URL del Webhook</td><td><code>…/webhook-test/ruta</code></td><td><code>…/webhook/ruta</code></td></tr>
+        <tr><td>URL del formulario</td><td><code>…/form-test/ruta</code></td><td><code>…/form/ruta</code></td></tr>
+        <tr><td>Cuánto dura</td><td>El Webhook escucha 120 segundos y solo atiende <strong>una</strong> llamada.</td><td>Hasta que despublicas el workflow.</td></tr>
+        <tr><td>Dónde ves los datos</td><td>En el lienzo, en cada nodo.</td><td>Solo en la pestaña <em>Executions</em>.</td></tr>
+        <tr><td>Qué versión se ejecuta</td><td>La que tienes en el editor ahora mismo.</td><td>La <strong>última publicada</strong>, no tus cambios sin publicar.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note warn"><p>Un error muy común: probar con la URL de producción sin haber publicado (no responde) o dejar la URL de prueba en una aplicación externa (deja de funcionar en cuanto cierras el editor). En las apps externas pon siempre la URL de <strong>producción</strong>.</p></div>
+
+    <h2 id="schedule">Schedule Trigger: a una hora o cada cierto tiempo</h2>
+    <p>El <strong>Schedule Trigger</strong> lanza el workflow según un horario. Sirve para informes diarios, copias de seguridad, comprobar una web cada 15 minutos o enviar un recordatorio los lunes.</p>
+    <h3>Sus parámetros</h3>
+    <p>Todo se configura en <em>Trigger Rules</em>. Cada regla tiene un <em>Trigger Interval</em> (la unidad de tiempo) y, según la que elijas, aparecen unos campos u otros:</p>
+    <ul class="lines">
+      <li><code>Seconds</code> / <code>Minutes</code><span>Cada N segundos o minutos (<em>Seconds/Minutes Between Triggers</em>).</span></li>
+      <li><code>Hours</code><span>Cada N horas, en el minuto que elijas (<em>Trigger at Minute</em>).</span></li>
+      <li><code>Days</code><span>Cada N días, a una hora y minuto (<em>Trigger at Hour</em>, <em>Trigger at Minute</em>).</span></li>
+      <li><code>Weeks</code><span>Cada N semanas, los días que marques (<em>Trigger on Weekdays</em>), a una hora.</span></li>
+      <li><code>Months</code><span>Cada N meses, un día del mes (<em>Trigger at Day of Month</em>) a una hora. Si el mes no tiene ese día (un 31 en abril), ese mes no se ejecuta.</span></li>
+      <li><code>Custom (Cron)</code><span>Una expresión cron, para horarios que no encajan en lo anterior.</span></li>
+    </ul>
+    <p>Puedes añadir <strong>varias reglas</strong> en el mismo nodo (botón <em>Add Rule</em>): por ejemplo, a las 9:00 y a las 18:00. Basta con que se cumpla una para que se ejecute.</p>
+
+    <h3>Expresiones cron en un minuto</h3>
+    <p>Una expresión cron son 5 campos separados por espacios. n8n admite un sexto campo opcional, al principio, para los segundos.</p>
+    <div class="code"><div class="h">Formato cron</div><pre><code><span class="c">┌──────── minuto (0-59)</span>
+<span class="c">│ ┌────── hora (0-23)</span>
+<span class="c">│ │ ┌──── día del mes (1-31)</span>
+<span class="c">│ │ │ ┌── mes (1-12)</span>
+<span class="c">│ │ │ │ ┌ día de la semana (0-6, 0 = domingo)</span>
+<span class="v">30 8 * * 1-5</span>   <span class="c">→ de lunes a viernes a las 8:30</span></code></pre></div>
+    <ul class="lines">
+      <li><code>*</code><span>Cualquier valor.</span></li>
+      <li><code>1-5</code><span>Un rango: del 1 al 5 (en día de la semana, de lunes a viernes).</span></li>
+      <li><code>9,18</code><span>Una lista: a las 9 y a las 18.</span></li>
+      <li><code>*/15</code><span>Cada 15: en minutos, a las :00, :15, :30 y :45.</span></li>
+    </ul>
+    <div class="note tip"><p>Para comprobar una expresión puedes usar <a href="https://crontab.guru/" target="_blank" rel="noopener">crontab.guru</a> (quita antes el campo de segundos, si lo pusiste) o el planificador de abajo.</p></div>
+
+    <h3>La zona horaria</h3>
+    <p>«A las 9:00», ¿de dónde? El Schedule Trigger usa la zona horaria <strong>del workflow</strong> si la has fijado y, si no, la de la instancia.</p>
+    <ul>
+      <li><strong>De la instancia:</strong> en el <code>compose.yml</code> del módulo 2 ya pusiste <code>GENERIC_TIMEZONE=${TZ}</code> con <code>TZ=Europe/Madrid</code>. Sin esa variable, n8n autoalojado usa <em>America/New_York</em> y tus horarios saldrían 6 horas tarde.</li>
+      <li><strong>De un workflow:</strong> menú del workflow (los tres puntos) → <em>Settings</em> → <em>Timezone</em>.</li>
+    </ul>
+
+    <h3>Detalles que cambian en n8n 2.x</h3>
+    <ul>
+      <li>El horario empieza a contar <strong>cuando publicas</strong>. Desde n8n 2.45, los intervalos de segundos y minutos se espacian desde el momento de publicar, no desde las horas en punto. Si quieres «a las :00, :15, :30 y :45 exactas», usa cron (<code>*/15 * * * *</code>).</li>
+      <li>Si cambias el horario, <strong>vuelve a publicar</strong>: el workflow publicado sigue con el horario antiguo hasta entonces.</li>
+      <li>En la pestaña <em>Settings</em> del nodo tienes <em>If Execution Is Missed</em>: qué hacer si n8n estaba apagado a la hora prevista. Por defecto se salta esa ejecución; puedes pedir que recupere la última perdida.</li>
+    </ul>
+
+    <h2 id="planificador">Planificador: prueba horarios antes de publicarlos</h2>
+    <p>Elige un intervalo como en el nodo y mira las próximas ejecuciones, la expresión cron equivalente y cómo quedaría el parámetro en el JSON del workflow.</p>
+    <div class="sched" id="sched">
+      <div class="sched-par">
+        <h4>Parameters · Schedule Trigger</h4>
+        <div class="sched-f">
+          <label for="sc-int">Trigger Interval</label>
+          <select id="sc-int">
+            <option value="seconds">Seconds</option>
+            <option value="minutes">Minutes</option>
+            <option value="hours">Hours</option>
+            <option value="days" selected>Days</option>
+            <option value="weeks">Weeks</option>
+            <option value="months">Months</option>
+            <option value="cronExpression">Custom (Cron)</option>
+          </select>
+        </div>
+        <div class="sched-f" data-show="seconds minutes hours days weeks months"><label for="sc-n" id="sc-n-l">Days Between Triggers</label><input id="sc-n" type="number" min="1" max="59" value="1"></div>
+        <div class="sched-f" data-show="months"><label for="sc-dom">Trigger at Day of Month</label><input id="sc-dom" type="number" min="1" max="31" value="1"></div>
+        <div class="sched-f" data-show="weeks"><span class="lbl" id="sc-wd-l">Trigger on Weekdays</span>
+          <div class="sched-days" id="sc-wd" role="group" aria-labelledby="sc-wd-l">
+            <label><input type="checkbox" value="1" checked><span>L</span></label><label><input type="checkbox" value="2"><span>M</span></label><label><input type="checkbox" value="3"><span>X</span></label><label><input type="checkbox" value="4"><span>J</span></label><label><input type="checkbox" value="5"><span>V</span></label><label><input type="checkbox" value="6"><span>S</span></label><label><input type="checkbox" value="0"><span>D</span></label>
+          </div>
+        </div>
+        <div class="sched-f" data-show="days weeks months"><label for="sc-h">Trigger at Hour</label><select id="sc-h"></select></div>
+        <div class="sched-f" data-show="hours days weeks months"><label for="sc-m">Trigger at Minute</label><input id="sc-m" type="number" min="0" max="59" value="0"></div>
+        <div class="sched-f" data-show="cronExpression"><label for="sc-cron">Expression</label><input id="sc-cron" type="text" value="30 8 * * 1-5" spellcheck="false" autocomplete="off"></div>
+        <div class="sched-chips" data-show="cronExpression" aria-label="Ejemplos de cron">
+          <button type="button" data-cron="30 8 * * 1-5">Laborables 8:30</button><button type="button" data-cron="0 9,18 * * *">9:00 y 18:00</button><button type="button" data-cron="*/15 * * * *">Cada 15 min</button><button type="button" data-cron="0 10 1 * *">Día 1 a las 10</button><button type="button" data-cron="0 0 1 1,4,7,10 *">Trimestral</button><button type="button" data-cron="*/10 * * * * *">Cada 10 s</button>
+        </div>
+      </div>
+      <div class="sched-out">
+        <h4>Resultado</h4>
+        <p class="sched-desc" id="sc-desc" aria-live="polite"></p>
+        <p class="sched-cron">Cron equivalente: <code id="sc-eq"></code></p>
+        <h4>Próximas 5 ejecuciones <small id="sc-tz"></small></h4>
+        <ol class="sched-next" id="sc-next"></ol>
+        <h4>En el JSON del workflow</h4>
+        <pre id="sc-json"></pre>
+      </div>
+    </div>
+    <div class="note info"><p>El planificador calcula con la hora de tu navegador y supone que publicas el workflow ahora mismo. En n8n cuenta la zona horaria del workflow o de la instancia.</p></div>
+
+    <h2 id="webhook">Webhook: que otra aplicación arranque tu workflow</h2>
+    <p>Un <strong>webhook</strong> es una URL que n8n deja «escuchando». Cuando otra aplicación (tu web, una tienda online, un script, Postman…) le envía una petición HTTP, el workflow arranca con los datos de esa petición.</p>
+    <p>Es la forma más rápida de conectar n8n con cualquier cosa que sepa hacer una llamada HTTP, aunque no tenga un nodo propio.</p>
+    <h3>Sus parámetros</h3>
+    <ul class="lines">
+      <li><code>Webhook URLs</code><span>Arriba del panel tienes las dos URL, <em>Test</em> y <em>Production</em>, con un selector para ver una u otra y copiarla.</span></li>
+      <li><code>HTTP Method</code><span>GET, POST, PUT, PATCH, DELETE o HEAD. La llamada tiene que usar el mismo método; si no, n8n responde con un 404.</span></li>
+      <li><code>Path</code><span>La última parte de la URL. Por defecto es un código aleatorio; cámbialo por algo legible como <code>contacto</code>. Admite variables: <code>pedido/:id</code>.</span></li>
+      <li><code>Authentication</code><span><em>None</em>, <em>Basic Auth</em>, <em>Header Auth</em>, <em>JWT Auth</em> o <em>n8n User Auth</em>. Sin autenticación, cualquiera que conozca la URL puede llamarla.</span></li>
+      <li><code>Respond</code><span>Cuándo y qué contesta n8n a quien llama (lo ves justo debajo).</span></li>
+    </ul>
+    <h3>Qué responde n8n</h3>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Opción de <em>Respond</em></th><th>Qué recibe quien llama</th><th>Cuándo usarla</th></tr></thead>
+      <tbody>
+        <tr><td><em>Immediately</em></td><td>Al instante, <code>{"message":"Workflow was started"}</code>, sin esperar al resto del workflow.</td><td>Avisos que no necesitan respuesta (la opción por defecto).</td></tr>
+        <tr><td><em>When Last Node Finishes</em></td><td>El resultado del último nodo (por defecto, el primer item en JSON).</td><td>Cuando quien llama quiere un dato calculado.</td></tr>
+        <tr><td><em>Using 'Respond to Webhook' Node</em></td><td>Lo que configures en un nodo <em>Respond to Webhook</em> colocado donde quieras.</td><td>Para elegir el código HTTP, cabeceras o un texto concreto.</td></tr>
+        <tr><td><em>Streaming</em></td><td>La respuesta poco a poco, mientras se ejecuta.</td><td>Con agentes de IA (módulo 10).</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3>Qué datos salen del nodo</h3>
+    <p>El Webhook genera <strong>un item</strong> con toda la petición. Lo que te interesa casi siempre está en <code>body</code> (los datos enviados) o en <code>query</code> (lo que va después de <code>?</code> en la URL).</p>
+    <div class="code"><div class="h">Salida del Webhook (simplificada)</div><pre><code>{
+  <span class="k">"headers"</span>: { <span class="k">"host"</span>: <span class="s">"localhost:5678"</span>, <span class="k">"content-type"</span>: <span class="s">"application/json"</span>, … },
+  <span class="k">"params"</span>: {},                       <span class="c">// variables de la ruta, p. ej. :id</span>
+  <span class="k">"query"</span>: { <span class="k">"origen"</span>: <span class="s">"web"</span> },          <span class="c">// ?origen=web</span>
+  <span class="k">"body"</span>: { <span class="k">"nombre"</span>: <span class="s">"marta gil"</span>, … },   <span class="c">// datos enviados</span>
+  <span class="k">"webhookUrl"</span>: <span class="s">"http://localhost:5678/webhook-test/contacto"</span>,
+  <span class="k">"executionMode"</span>: <span class="s">"test"</span>              <span class="c">// "test" o "production"</span>
+}</code></pre></div>
+    <p>Por eso, en los nodos siguientes leerás los datos con <code>{{ $json.body.nombre }}</code> o <code>{{ $json.query.origen }}</code>, no con <code>{{ $json.nombre }}</code>.</p>
+
+    <h3>Cómo llamar a un webhook desde tu ordenador</h3>
+    <div class="tabs">
+      <div role="tablist" aria-label="Sistema para llamar al webhook">
+        <button role="tab" id="t-ps" aria-controls="p-ps" type="button">Windows (PowerShell)</button>
+        <button role="tab" id="t-sh" aria-controls="p-sh" type="button">macOS / Linux (curl)</button>
+      </div>
+      <div role="tabpanel" id="p-ps" aria-labelledby="t-ps">
+        <div class="code"><div class="h">PowerShell<button class="copy" type="button">Copiar</button></div><pre><code>Invoke-RestMethod -Method Post -Uri "http://localhost:5678/webhook-test/contacto" -ContentType "application/json" -Body '{"nombre":"  marta gil","email":"MARTA@Ejemplo.com","tema":"Presupuesto","mensaje":"Quiero una web nueva"}'</code></pre></div>
+        <p>En Windows, <code>curl</code> dentro de PowerShell puede no ser el curl real. <code>Invoke-RestMethod</code> funciona siempre y muestra la respuesta ya formateada.</p>
+      </div>
+      <div role="tabpanel" id="p-sh" aria-labelledby="t-sh">
+        <div class="code"><div class="h">Terminal<button class="copy" type="button">Copiar</button></div><pre><code>curl -X POST "http://localhost:5678/webhook-test/contacto" \
+  -H "Content-Type: application/json" \
+  -d '{"nombre":"  marta gil","email":"MARTA@Ejemplo.com","tema":"Presupuesto","mensaje":"Quiero una web nueva"}'</code></pre></div>
+      </div>
+    </div>
+    <div class="note info"><p>Para una petición GET basta con abrir la URL en el navegador: <code>http://localhost:5678/webhook-test/ruta?nombre=Marta</code>. Para POST necesitas un comando como los de arriba o una herramienta como Postman.</p></div>
+
+    <h2 id="probador">Probador de webhooks</h2>
+    <p>Configura el nodo, prepara una petición y envíala. Verás qué responde n8n, qué item recibe el workflow y los errores típicos: método equivocado, URL de prueba sin escuchar o URL de producción sin publicar.</p>
+    <div class="hook" id="hook">
+      <div class="hook-node">
+        <h4>Nodo Webhook</h4>
+        <div class="hook-f"><label for="hk-nm">HTTP Method</label><select id="hk-nm"><option>GET</option><option selected>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></div>
+        <div class="hook-f"><label for="hk-path">Path</label><input id="hk-path" type="text" value="contacto" spellcheck="false" autocomplete="off"></div>
+        <div class="hook-f"><label for="hk-resp">Respond</label><select id="hk-resp"><option value="onReceived">Immediately</option><option value="lastNode" selected>When Last Node Finishes</option><option value="responseNode">Using 'Respond to Webhook' Node</option></select></div>
+        <h4>Estado del workflow</h4>
+        <label class="hook-sw"><input type="checkbox" id="hk-listen"><span>Escuchando prueba (<em>Listen for test event</em>)</span></label>
+        <label class="hook-sw"><input type="checkbox" id="hk-pub"><span>Workflow publicado</span></label>
+        <p class="hook-flow">El workflow: <em>Webhook</em> → <em>Preparar contacto</em> (las expresiones de la práctica).</p>
+      </div>
+      <div class="hook-req">
+        <h4>Petición</h4>
+        <div class="hook-url" role="group" aria-label="URL a la que llamar">
+          <button type="button" data-url="test" aria-pressed="true">URL de prueba</button><button type="button" data-url="prod" aria-pressed="false">URL de producción</button>
+        </div>
+        <div class="hook-line"><select id="hk-rm" aria-label="Método de la petición"><option>GET</option><option selected>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select><code id="hk-url"></code></div>
+        <label for="hk-q" class="lbl">Query (después de <code>?</code>)</label>
+        <input id="hk-q" type="text" value="origen=web" spellcheck="false" autocomplete="off">
+        <label for="hk-body" class="lbl">Body (JSON)</label>
+        <textarea id="hk-body" rows="6" spellcheck="false">{
+  "nombre": "  marta gil",
+  "email": "MARTA@Ejemplo.com",
+  "tema": "Presupuesto",
+  "mensaje": "Quiero una web nueva"
+}</textarea>
+        <button class="btn sm" type="button" id="hk-send">Enviar petición</button>
+        <details class="hook-cmd"><summary>Ver el comando equivalente</summary><pre id="hk-cmd"></pre></details>
+      </div>
+      <div class="hook-res">
+        <h4>Respuesta <span class="hook-st" id="hk-st"></span></h4>
+        <pre id="hk-out">Pulsa «Enviar petición».</pre>
+        <h4>Item que recibe el workflow</h4>
+        <pre id="hk-item">—</pre>
+        <p class="hook-msg" id="hk-msg" aria-live="polite"></p>
+      </div>
+    </div>
+    <div class="note info"><p>El probador simplifica: las cabeceras reales son más largas y el nodo <em>Respond to Webhook</em> se configura a mano. Los mensajes de los errores 404 son los mismos que devuelve n8n.</p></div>
+
+    <h2 id="form">n8n Form Trigger: formularios sin programar</h2>
+    <p>El nodo <strong>n8n Form Trigger</strong> (en el panel aparece como <em>On form submission</em>) crea una página web con un formulario. Cuando alguien lo envía, el workflow arranca con las respuestas. Es ideal para solicitudes, inscripciones o encuestas internas.</p>
+    <h3>Sus parámetros</h3>
+    <ul class="lines">
+      <li><code>Form Title</code> / <code>Form Description</code><span>El título y el texto de presentación de la página.</span></li>
+      <li><code>Form Elements</code><span>Los campos. Cada uno tiene <em>Field Label</em> (lo que ve la persona), <em>Field Name</em> (el nombre del campo en los datos), tipo y si es obligatorio (<em>Required Field</em>).</span></li>
+      <li><code>Respond When</code><span><em>Form Is Submitted</em> (contesta al momento) o <em>Workflow Finishes</em> (espera al final y muestra un error si algo falla).</span></li>
+      <li><code>Options</code><span><em>Form Path</em> (la ruta de la URL), <em>Button Label</em>, <em>Form Response</em> (texto de agradecimiento o redirección), <em>Append n8n Attribution</em>, <em>Custom Form Styling</em> (CSS) y más.</span></li>
+    </ul>
+    <p>Tipos de campo disponibles: <em>Text</em>, <em>Textarea</em>, <em>Email</em>, <em>Number</em>, <em>Date</em>, <em>Dropdown</em>, <em>Radio Buttons</em>, <em>Checkboxes</em>, <em>File</em>, <em>Password</em>, <em>Hidden Field</em> y <em>Custom HTML</em>.</p>
+    <div class="note warn"><p>Rellena siempre <strong>Field Name</strong> con un nombre sencillo (<code>nombre</code>, <code>email</code>). Si lo dejas vacío, n8n usa la etiqueta como nombre y tendrás que escribir <code>$json["Tu nombre completo"]</code> en cada expresión.</p></div>
+    <h3>Qué datos salen</h3>
+    <div class="code"><div class="h">Salida del Form Trigger</div><pre><code>{
+  <span class="k">"nombre"</span>: <span class="s">"Marta Gil"</span>,
+  <span class="k">"email"</span>: <span class="s">"marta@ejemplo.com"</span>,
+  <span class="k">"tema"</span>: <span class="s">"Presupuesto"</span>,
+  <span class="k">"mensaje"</span>: <span class="s">"Quiero una web nueva"</span>,
+  <span class="k">"submittedAt"</span>: <span class="s">"2026-11-26T13:05:12.345+01:00"</span>,  <span class="c">// cuándo se envió</span>
+  <span class="k">"formMode"</span>: <span class="s">"test"</span>                                <span class="c">// "test" o "production"</span>
+}</code></pre></div>
+    <p>Al contrario que el Webhook, aquí los campos están en el primer nivel: <code>{{ $json.nombre }}</code>.</p>
+    <div class="note tip"><p>¿Formulario en varias páginas? Añade después nodos <strong>n8n Form</strong> (sin «Trigger»): cada uno es una página nueva o la pantalla final. En producción también puedes rellenar campos desde la URL: <code>…/form/ruta?email=ana%40ejemplo.com</code>.</p></div>
+
+    <h2 id="apps">Triggers de aplicaciones</h2>
+    <p>Muchas integraciones traen su propio trigger: <em>Gmail Trigger</em>, <em>Google Sheets Trigger</em>, <em>Telegram Trigger</em>, <em>GitHub Trigger</em>… Necesitan una <strong>credencial</strong> de la app (lo verás en el módulo 8) y funcionan de una de estas dos formas:</p>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Por consulta (polling)</h3><p>n8n pregunta a la app cada cierto tiempo «¿hay algo nuevo?». Se configura en <em>Poll Times</em> (cada minuto, cada hora…).</p><p style="margin:0"><strong>Ejemplos:</strong> Gmail Trigger, Google Sheets Trigger, Google Drive Trigger. <strong>Funcionan en tu n8n local</strong> sin hacer nada más.</p></div>
+      <div class="card"><h3 style="margin-top:0">Instantáneos (webhook)</h3><p>Al publicar, n8n registra su URL en la app y la app avisa al momento cuando pasa algo.</p><p style="margin:0"><strong>Ejemplos:</strong> Telegram Trigger, GitHub Trigger, Stripe Trigger. <strong>Necesitan una URL pública con HTTPS</strong>: la app no puede llegar a tu <code>localhost</code>.</p></div>
+    </div>
+    <div class="note warn"><p>Si usas n8n en local y un trigger instantáneo da error al publicar, es por eso. Las soluciones son instalar n8n en un servidor con dominio, usar un túnel (Cloudflare Tunnel, ngrok…) o n8n Cloud. En todos los casos hay que indicar la dirección pública con la variable <code>N8N_WEBHOOK_URL</code> (desde n8n 2.30; sustituye a <code>WEBHOOK_URL</code>, obsoleta desde 2.35).</p></div>
+    <p>Mientras tanto, para aprender, el Webhook y el formulario funcionan perfectamente en local: tú haces de «aplicación externa» desde tu propio ordenador.</p>
+
+    <h2 id="publicar">Publicar y vigilar las ejecuciones</h2>
+    <p>En el módulo 3 viste el botón <strong>Publish</strong>. Con triggers automáticos es imprescindible: sin publicar, nada se ejecuta solo.</p>
+    <ol class="steps">
+      <li><strong>Publica</strong> con el botón <em>Publish</em> o <kbd>Shift</kbd> + <kbd>P</kbd>. n8n activa los triggers: el horario empieza a contar, el Webhook y el formulario usan sus URL de producción y los triggers de apps empiezan a escuchar.</li>
+      <li><strong>Sigue editando con tranquilidad.</strong> Producción ejecuta la versión publicada, no tus cambios. Cuando quieras aplicarlos, publica de nuevo: n8n solo reactiva los triggers que hayas cambiado.</li>
+      <li><strong>Revisa la pestaña <em>Executions</em></strong> del workflow para ver cada ejecución de producción: cuándo fue, si salió bien y qué datos pasaron por cada nodo.</li>
+      <li><strong>Si un trigger falla al activarse</strong> (por ejemplo, una app no responde), el resto sigue funcionando. Pasa el ratón por el botón de publicar para ver cuál falló y vuelve a publicar para reintentarlo.</li>
+      <li><strong>Despublica</strong> desde el desplegable junto a <em>Publish</em> cuando quieras pararlo. Un workflow publicado con un Schedule seguirá ejecutándose cada día aunque no abras n8n.</li>
+    </ol>
+    <div class="note info"><p>En toda la instancia solo puede haber <strong>un webhook por combinación de ruta y método</strong>. Si publicas dos workflows con <code>POST contacto</code>, el segundo dará error: cambia la ruta o despublica el otro.</p></div>
+
+    <h2 id="practica">Práctica: un workflow con tres triggers</h2>
+    <p>Vas a construir el workflow «Contacto web». Recibe mensajes de contacto por dos vías, un formulario y un webhook, y los deja en el mismo formato. Además, envía un recordatorio cada mañana.</p>
+    <div class="flows">
+      <p class="flows-t">Rama 1 · Formulario</p><div class="flow" data-flujo="form"></div>
+      <p class="flows-t">Rama 2 · Webhook (al mismo nodo «Preparar contacto»)</p><div class="flow" data-flujo="hook"></div>
+      <p class="flows-t">Rama 3 · Horario</p><div class="flow" data-flujo="hora"></div>
+    </div>
+    <h3>Parte A · El formulario</h3>
+    <ol class="steps">
+      <li><strong>Crea el workflow</strong> «Contacto web» y añade como primer paso <strong>On form submission</strong> (n8n Form Trigger). Llámalo <strong>Formulario de contacto</strong>.</li>
+      <li><strong>Configura el formulario.</strong> <em>Form Title</em>: <code>Contacto</code>. <em>Form Description</em>: <code>Cuéntanos en qué podemos ayudarte.</code> Añade cuatro elementos:
+        <div class="scroll"><table class="stack">
+          <thead><tr><th>Field Label</th><th>Field Name</th><th>Tipo</th><th>Obligatorio</th></tr></thead>
+          <tbody>
+            <tr><td>Nombre</td><td><code>nombre</code></td><td>Text</td><td>Sí</td></tr>
+            <tr><td>Email</td><td><code>email</code></td><td>Email</td><td>Sí</td></tr>
+            <tr><td>Tema</td><td><code>tema</code></td><td>Dropdown: Duda, Presupuesto, Otro</td><td>No</td></tr>
+            <tr><td>Mensaje</td><td><code>mensaje</code></td><td>Textarea</td><td>Sí</td></tr>
+          </tbody>
+        </table></div>
+      </li>
+      <li><strong>Opciones.</strong> En <em>Add option</em>: <em>Form Path</em> = <code>formulario-contacto</code>, <em>Button Label</em> = <code>Enviar</code> y, en <em>Form Response</em>, el texto <code>¡Gracias! Te responderemos pronto.</code></li>
+      <li><strong>Pruébalo.</strong> Pulsa <em>Execute step</em>: n8n abre el formulario en una pestaña nueva con la URL de prueba (<code>/form-test/formulario-contacto</code>). Rellénalo con nombre <code>  marta gil</code> (con espacios delante) y envíalo. Vuelve al editor: el nodo tiene 1 item con tus respuestas, <code>submittedAt</code> y <code>formMode: "test"</code>.</li>
+      <li><strong>Prepara los datos.</strong> Añade un <em>Edit Fields</em> llamado <strong>Preparar contacto</strong> con estos campos, en modo <em>Expression</em> (todos de tipo String). Las expresiones sirven para las dos ramas gracias a <code>?.</code> y <code>??</code> del módulo 5:
+        <div class="scroll"><table class="stack">
+          <thead><tr><th>Nombre</th><th>Valor</th></tr></thead>
+          <tbody>
+            <tr><td><code>origen</code></td><td><code>{{ $json.body ? 'webhook' : 'formulario' }}</code></td></tr>
+            <tr><td><code>nombre</code></td><td><code>{{ ($json.body?.nombre ?? $json.nombre).trim().toTitleCase() }}</code></td></tr>
+            <tr><td><code>email</code></td><td><code>{{ ($json.body?.email ?? $json.email).trim().toLowerCase() }}</code></td></tr>
+            <tr><td><code>tema</code></td><td><code>{{ $json.body?.tema ?? $json.tema ?? 'Otro' }}</code></td></tr>
+            <tr><td><code>mensaje</code></td><td><code>{{ $json.body?.mensaje ?? $json.mensaje }}</code></td></tr>
+            <tr><td><code>modo</code></td><td><code>{{ $json.formMode ?? $json.executionMode }}</code></td></tr>
+            <tr><td><code>recibido</code></td><td><code>{{ $now.toFormat('dd/MM/yyyy HH:mm') }}</code></td></tr>
+          </tbody>
+        </table></div>
+        Ejecuta el paso: debes ver <code>origen: formulario</code> y el nombre como «Marta Gil».
+      </li>
+    </ol>
+    <h3>Parte B · El webhook</h3>
+    <ol class="steps">
+      <li><strong>Añade un segundo trigger.</strong> Pulsa el <strong>+</strong> del lienzo (fuera de cualquier nodo), busca <strong>Webhook</strong> y llámalo <strong>Webhook de contacto</strong>. <em>HTTP Method</em>: <code>POST</code>. <em>Path</em>: <code>contacto</code>. <em>Respond</em>: <em>When Last Node Finishes</em>.</li>
+      <li><strong>Conéctalo</strong> a la entrada de «Preparar contacto». Ahora ese nodo tiene dos flechas de entrada: cada ejecución llegará por una sola.</li>
+      <li><strong>Escucha.</strong> Abre el Webhook y pulsa <em>Listen for test event</em>. Tienes 120 segundos.</li>
+      <li><strong>Llama a la URL de prueba</strong> con el comando de PowerShell o curl de la sección <a href="#webhook">Webhook</a>. En la terminal recibirás como respuesta el item de «Preparar contacto», con <code>origen: webhook</code> y <code>modo: test</code>.</li>
+      <li><strong>Repite la llamada</strong> sin pulsar <em>Listen</em>: obtendrás un error 404. La URL de prueba solo atiende una llamada cada vez que escuchas.</li>
+    </ol>
+    <h3>Parte C · El horario y la publicación</h3>
+    <ol class="steps">
+      <li><strong>Tercer trigger.</strong> Añade un <strong>Schedule Trigger</strong> llamado <strong>Cada día a las 9:00</strong>: <em>Trigger Interval</em> = Days, <em>Days Between Triggers</em> = 1, <em>Trigger at Hour</em> = 9am, <em>Trigger at Minute</em> = 0.</li>
+      <li><strong>Su acción.</strong> Conéctale un <em>Edit Fields</em> llamado <strong>Recordatorio</strong> con tres campos String: <code>mensaje</code> = <code>Revisa los contactos recibidos en la pestaña Executions.</code> (fijo), <code>dia</code> = <code>{{ $now.setLocale('es').toFormat("cccc d 'de' LLLL") }}</code> y <code>programado_para</code> = <code>{{ $json.timestamp }}</code>. Pulsa <em>Execute step</em> en el Schedule para probarlo sin esperar a mañana.</li>
+      <li><strong>Comprueba la zona horaria</strong> en <em>Settings</em> del workflow: debe ser Europe/Madrid (o la tuya).</li>
+      <li><strong>Publica</strong> con <kbd>Shift</kbd> + <kbd>P</kbd>.</li>
+      <li><strong>Prueba producción.</strong> Abre <code>http://localhost:5678/form/formulario-contacto</code> en otra pestaña y envía el formulario. Después repite el comando de la terminal cambiando <code>webhook-test</code> por <code>webhook</code> (ahora funciona todas las veces que quieras, sin pulsar <em>Listen</em>).</li>
+      <li><strong>Mira las ejecuciones.</strong> El lienzo no muestra nada nuevo: abre la pestaña <em>Executions</em>. Verás las dos ejecuciones de producción; ábrelas y comprueba que <code>modo</code> vale <code>production</code>.</li>
+      <li><strong>Limpieza (opcional).</strong> Si no quieres que el recordatorio se ejecute cada mañana, despublica el workflow.</li>
+    </ol>
+
+    <h2 id="solucion">Solución</h2>
+    <p>Copia y pega este workflow en un lienzo vacío para comparar con el tuyo. Al pegarlo, n8n puede generar URLs nuevas para los triggers: revisa la ruta en cada nodo.</p>
+    <div class="code"><div class="h">Workflow «Contacto web» (JSON para pegar en el lienzo)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Contacto",
+        "formDescription": "Cuéntanos en qué podemos ayudarte.",
+        "formFields": {
+          "values": [
+            { "fieldLabel": "Nombre", "fieldName": "nombre", "placeholder": "Tu nombre", "requiredField": true },
+            { "fieldLabel": "Email", "fieldName": "email", "fieldType": "email", "placeholder": "tu@email.com", "requiredField": true },
+            { "fieldLabel": "Tema", "fieldName": "tema", "fieldType": "dropdown", "fieldOptions": { "values": [ { "option": "Duda" }, { "option": "Presupuesto" }, { "option": "Otro" } ] } },
+            { "fieldLabel": "Mensaje", "fieldName": "mensaje", "fieldType": "textarea", "requiredField": true }
+          ]
+        },
+        "options": {
+          "path": "formulario-contacto",
+          "buttonLabel": "Enviar",
+          "respondWithOptions": { "values": { "respondWith": "text", "formSubmittedText": "¡Gracias! Te responderemos pronto." } }
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [0, 0],
+      "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a01",
+      "name": "Formulario de contacto",
+      "webhookId": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a02"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "contacto",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [0, 200],
+      "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a03",
+      "name": "Webhook de contacto",
+      "webhookId": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a04"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a05", "name": "origen", "value": "={{ $json.body ? 'webhook' : 'formulario' }}", "type": "string" },
+            { "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a06", "name": "nombre", "value": "={{ ($json.body?.nombre ?? $json.nombre).trim().toTitleCase() }}", "type": "string" },
+            { "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a07", "name": "email", "value": "={{ ($json.body?.email ?? $json.email).trim().toLowerCase() }}", "type": "string" },
+            { "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a08", "name": "tema", "value": "={{ $json.body?.tema ?? $json.tema ?? 'Otro' }}", "type": "string" },
+            { "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a09", "name": "mensaje", "value": "={{ $json.body?.mensaje ?? $json.mensaje }}", "type": "string" },
+            { "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a10", "name": "modo", "value": "={{ $json.formMode ?? $json.executionMode }}", "type": "string" },
+            { "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a11", "name": "recibido", "value": "={{ $now.toFormat('dd/MM/yyyy HH:mm') }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [260, 100],
+      "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a12",
+      "name": "Preparar contacto"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "days", "triggerAtHour": 9, "triggerAtMinute": 0 }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [0, 420],
+      "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a13",
+      "name": "Cada día a las 9:00"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a14", "name": "mensaje", "value": "Revisa los contactos recibidos en la pestaña Executions.", "type": "string" },
+            { "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a15", "name": "dia", "value": "={{ $now.setLocale('es').toFormat(\"cccc d 'de' LLLL\") }}", "type": "string" },
+            { "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a16", "name": "programado_para", "value": "={{ $json.timestamp }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [260, 420],
+      "id": "c6a1e4b2-6d8f-4e1a-9b32-4c5d6e7f8a17",
+      "name": "Recordatorio"
+    }
+  ],
+  "connections": {
+    "Formulario de contacto": { "main": [[{ "node": "Preparar contacto", "type": "main", "index": 0 }]] },
+    "Webhook de contacto": { "main": [[{ "node": "Preparar contacto", "type": "main", "index": 0 }]] },
+    "Cada día a las 9:00": { "main": [[{ "node": "Recordatorio", "type": "main", "index": 0 }]] }
+  }
+}</code></pre></div>
+    <p>Fíjate en que «Preparar contacto» no sabe qué trigger lo lanzó: lo deduce de los datos. Si llega <code>body</code>, viene del Webhook; si no, del formulario.</p>
+
+    <h2 id="problemas">Problemas frecuentes</h2>
+    <div class="faq">
+      <details><summary>Llamo al webhook y responde 404 «The requested webhook … is not registered»</summary><div><p>Con la URL de prueba: no estabas escuchando. Pulsa <em>Listen for test event</em> (o <em>Execute workflow</em>) y llama en menos de 120 segundos; recuerda que solo vale para una llamada. Con la URL de producción: el workflow no está publicado, o la ruta no coincide.</p></div></details>
+      <details><summary>Error 404 «This webhook is not registered for GET requests. Did you mean to make a POST request?»</summary><div><p>El método de la llamada no coincide con el <em>HTTP Method</em> del nodo. Abrir la URL en el navegador siempre hace un GET: para probar un webhook POST usa PowerShell, curl o Postman.</p></div></details>
+      <details><summary>El Schedule se ejecuta a una hora rara (6 horas tarde, por ejemplo)</summary><div><p>Problema de zona horaria. Comprueba <code>GENERIC_TIMEZONE</code> en tu <code>compose.yml</code> (y reinicia el contenedor tras cambiarla) o fija la zona en <em>Settings</em> del workflow.</p></div></details>
+      <details><summary>He cambiado el horario o el workflow y producción sigue haciendo lo de antes</summary><div><p>Producción ejecuta la versión publicada. Vuelve a publicar para aplicar los cambios. El horario nuevo empieza a contar desde ese momento.</p></div></details>
+      <details><summary>«Cannot read properties of undefined (reading 'trim')» en «Preparar contacto»</summary><div><p>La petición no traía ese campo (o el body no era JSON). Revisa que envías <code>Content-Type: application/json</code> y los cuatro campos. Para hacerlo más robusto: <code>{{ ($json.body?.nombre ?? $json.nombre ?? '').trim() }}</code>.</p></div></details>
+      <details><summary>Un trigger de app (Telegram, GitHub…) falla al publicar en mi n8n local</summary><div><p>Es un trigger instantáneo: la app necesita una URL pública con HTTPS para avisar a n8n y <code>localhost</code> no lo es. Usa un trigger por consulta, un túnel con <code>N8N_WEBHOOK_URL</code> o una instalación con dominio.</p></div></details>
+    </div>
+
+    <h2 id="retos">Retos para practicar</h2>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Reto 1 · Solo laborables</h3><p style="margin:0">Cambia el recordatorio para que se ejecute de lunes a viernes a las 8:30 usando <em>Custom (Cron)</em>.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 2 · Webhook GET</h3><p style="margin:0">Crea un webhook GET con ruta <code>saludo</code> que responda «Hola, Marta» al abrir <code>…/webhook-test/saludo?nombre=Marta</code> en el navegador.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 3 · Teléfono opcional</h3><p style="margin:0">Añade al formulario un campo opcional <code>telefono</code> y un campo en «Preparar contacto» que muestre «Sin teléfono» si se deja vacío.</p></div>
+    </div>
+    <details class="term"><summary><i>?</i>Ver las soluciones</summary>
+      <div class="code"><div class="h">Soluciones de los retos<button class="copy" type="button">Copiar</button></div><pre><code><span class="c">// Reto 1 · Schedule Trigger → Trigger Interval: Custom (Cron) → Expression</span>
+30 8 * * 1-5
+<span class="c">// Reto 2 · Webhook: HTTP Method GET, Path saludo, Respond: When Last Node Finishes</span>
+<span class="c">// Edit Fields después del Webhook, campo «mensaje»:</span>
+Hola, {{ $json.query.nombre ?? 'desconocido' }}
+<span class="c">// Reto 3 · Un campo vacío del formulario puede llegar como "" o null;</span>
+<span class="c">// || cubre los dos casos (?? no cubre el texto vacío)</span>
+{{ $json.body?.telefono || $json.telefono || 'Sin teléfono' }}</code></pre></div>
+    </details>
+
+    <h3>Comprueba tu práctica</h3>
+    <ul class="check" id="checklist" data-ok="¡Genial! Tus workflows ya arrancan solos.">
+      <li><label><input type="checkbox"><span>Sé distinguir el modo prueba del modo producción y sus URL</span></label></li>
+      <li><label><input type="checkbox"><span>He creado un formulario con n8n Form Trigger y lo he enviado en modo prueba</span></label></li>
+      <li><label><input type="checkbox"><span>He llamado a un webhook POST desde la terminal y he recibido la respuesta del último nodo</span></label></li>
+      <li><label><input type="checkbox"><span>Sé leer los datos del Webhook en <code>$json.body</code> y <code>$json.query</code></span></label></li>
+      <li><label><input type="checkbox"><span>He configurado un Schedule Trigger y sé escribir una expresión cron sencilla</span></label></li>
+      <li><label><input type="checkbox"><span>He publicado el workflow y he visto las ejecuciones de producción en <em>Executions</em></span></label></li>
+      <li><label><input type="checkbox"><span>Sé por qué un trigger instantáneo no funciona con <code>localhost</code></span></label></li>
+    </ul>
+    <p class="check-msg" id="check-msg" aria-live="polite"></p>
+
+    <h2 id="test">Comprueba lo que has aprendido</h2>
+    <div id="quiz" class="quiz"></div>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="05-datos-expresiones.html">← Módulo 5: Datos y expresiones</a>
+      <a class="btn" href="07-logica.html">Módulo 7: Lógica y bucles →</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Basado en la <a href="https://docs.n8n.io/">documentación oficial</a> de n8n 2.x · Revisado en noviembre de 2026</footer>
+
+<script>
+window.FLUJOS = {
+  form: [
+    { tipo: 'trig', ico: '☰', t: 'Formulario de contacto', d: 'n8n Form Trigger' },
+    { ico: '✎', t: 'Preparar contacto', d: 'Edit Fields' }
+  ],
+  hook: [
+    { tipo: 'trig', ico: '⚡', t: 'Webhook de contacto', d: 'POST /contacto' },
+    { ico: '✎', t: 'Preparar contacto', d: 'Responde con este item' }
+  ],
+  hora: [
+    { tipo: 'trig', ico: '◷', t: 'Cada día a las 9:00', d: 'Schedule Trigger' },
+    { ico: '✎', t: 'Recordatorio', d: 'Edit Fields' }
+  ]
+};
+window.QUIZ = [
+  { p: 'Has creado un workflow con un Schedule Trigger para las 9:00, pero no se ejecuta. ¿Qué es lo primero que revisas?', o: ['Que el workflow esté publicado', 'Que el editor esté abierto a las 9:00', 'Que haya un Manual Trigger'], c: 0, e: 'Los triggers automáticos solo funcionan en producción, y producción se activa al publicar. No hace falta tener el editor abierto.' },
+  { p: '¿Qué URL debes poner en una aplicación externa que va a llamar a tu webhook todos los días?', o: ['La de prueba: …/webhook-test/ruta', 'La de producción: …/webhook/ruta', 'Cualquiera de las dos'], c: 1, e: 'La URL de prueba solo escucha 120 segundos y atiende una llamada tras pulsar Listen. La de producción funciona mientras el workflow esté publicado.' },
+  { p: 'Un Webhook recibe un POST con el JSON {"email":"ana@ejemplo.com"}. ¿Cómo lees el email en el nodo siguiente?', o: ['{{ $json.email }}', '{{ $json.body.email }}', '{{ $json.query.email }}'], c: 1, e: 'El Webhook guarda los datos enviados en body. En query está lo que va después de ? en la URL.' },
+  { p: '¿Qué significa la expresión cron 0 9 * * 1?', o: ['El día 1 de cada mes a las 9:00', 'Todos los lunes a las 9:00', 'Cada 9 minutos'], c: 1, e: 'Los campos son minuto, hora, día del mes, mes y día de la semana. El 1 en el último campo es el lunes (0 es domingo).' },
+  { p: 'Has cambiado el texto de un nodo en un workflow publicado. ¿Qué ejecutará la próxima llamada de producción?', o: ['El texto nuevo, porque n8n guarda automáticamente', 'El texto antiguo, hasta que vuelvas a publicar', 'Nada: el workflow se despublica al editarlo'], c: 1, e: 'El guardado automático guarda tus cambios en el editor, pero producción usa la última versión publicada.' },
+  { p: 'Tienes n8n en local con Docker. ¿Qué trigger te dará problemas sin configurar nada más?', o: ['Gmail Trigger (por consulta)', 'Telegram Trigger (instantáneo)', 'n8n Form Trigger'], c: 1, e: 'Los triggers instantáneos necesitan que la app pueda llamar a tu n8n por una URL pública con HTTPS; localhost no lo es. Los de consulta y el formulario funcionan en local.' }
+];
+</script>
+<script src="../js/main.js"></script>
+<script>
+{
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const p2 = n => String(n).padStart(2, '0');
+  const fmt = d => `${DIAS[d.getDay()]} ${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} · ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+  const hm = (h, m) => `${p2(h)}:${p2(m)}`;
+
+  /* ===== Planificador (Schedule Trigger) ===== */
+  const $s = id => document.getElementById(id);
+  const sInt = $s('sc-int'), sN = $s('sc-n'), sNL = $s('sc-n-l'), sDom = $s('sc-dom'), sH = $s('sc-h'), sM = $s('sc-m'), sCron = $s('sc-cron');
+  const sWd = [...document.querySelectorAll('#sc-wd input')];
+  sH.innerHTML = Array.from({ length: 24 }, (_, h) => `<option value="${h}"${h === 9 ? ' selected' : ''}>${h === 0 ? 'Midnight' : h === 12 ? 'Noon' : h < 12 ? h + 'am' : (h - 12) + 'pm'} (${p2(h)}:00)</option>`).join('');
+  const ETIQ = { seconds: 'Seconds Between Triggers', minutes: 'Minutes Between Triggers', hours: 'Hours Between Triggers', days: 'Days Between Triggers', weeks: 'Weeks Between Triggers', months: 'Months Between Triggers' };
+  const MAXN = { seconds: 59, minutes: 59, hours: 23, days: 31, weeks: 52, months: 12 };
+
+  /* Cron: 5 campos (o 6 con segundos al principio) */
+  const NOMBRES = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  const campo = (txt, min, max, nombre) => {
+    const set = new Set();
+    const num = v => { const k = v.toLowerCase(); const n = k in NOMBRES ? NOMBRES[k] : Number(v); if (!/^\w+$/.test(v) || Number.isNaN(n)) throw new Error(`Valor no válido en ${nombre}: «${v}»`); return n; };
+    txt.split(',').forEach(parte => {
+      const [rango, paso] = parte.split('/');
+      const st = paso === undefined ? 1 : Number(paso);
+      if (!(st >= 1) || !Number.isInteger(st)) throw new Error(`Paso no válido en ${nombre}: «${parte}»`);
+      let a, b;
+      if (rango === '*' || rango === '?') { a = min; b = max; }
+      else if (rango.includes('-')) { [a, b] = rango.split('-').map(num); }
+      else { a = num(rango); b = paso === undefined ? a : max; }
+      if (nombre === 'día de la semana') { if (a === 7) a = 0; if (b === 7 && a !== 0) b = 6; }
+      if (a < min || b > max || a > b) throw new Error(`Fuera de rango en ${nombre}: «${parte}» (de ${min} a ${max})`);
+      for (let i = a; i <= b; i += st) set.add(nombre === 'día de la semana' && i === 7 ? 0 : i);
+    });
+    return set;
+  };
+  const parseCron = expr => {
+    const f = expr.trim().split(/\s+/);
+    if (f.length !== 5 && f.length !== 6) throw new Error(`Una expresión cron tiene 5 campos (o 6 con segundos); esta tiene ${f.length}.`);
+    const seg = f.length === 6 ? f.shift() : '0';
+    return {
+      s: campo(seg, 0, 59, 'segundos'), m: campo(f[0], 0, 59, 'minuto'), h: campo(f[1], 0, 23, 'hora'),
+      dom: campo(f[2], 1, 31, 'día del mes'), mon: campo(f[3], 1, 12, 'mes'), dow: campo(f[4], 0, 7, 'día de la semana'),
+      domStar: f[2] === '*' || f[2] === '?', dowStar: f[4] === '*' || f[4] === '?'
+    };
+  };
+  const cronNext = (c, desde, n) => {
+    const res = [];
+    const d = new Date(desde); d.setSeconds(0, 0);
+    const segs = [...c.s].sort((x, y) => x - y);
+    for (let i = 0; i < 60 * 24 * 400 && res.length < n; i++) {
+      const okDia = c.domStar && c.dowStar ? true : c.domStar ? c.dow.has(d.getDay()) : c.dowStar ? c.dom.has(d.getDate()) : (c.dom.has(d.getDate()) || c.dow.has(d.getDay()));
+      if (c.mon.has(d.getMonth() + 1) && okDia && c.h.has(d.getHours()) && c.m.has(d.getMinutes())) {
+        for (const s of segs) { const t = new Date(d); t.setSeconds(s); if (t > desde && res.length < n) res.push(t); }
+      }
+      if (!c.mon.has(d.getMonth() + 1) || !okDia) { d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 1); i += 1439 - d.getHours() * 60; continue; }
+      if (!c.h.has(d.getHours())) { d.setMinutes(0); d.setHours(d.getHours() + 1); i += 59; continue; }
+      d.setMinutes(d.getMinutes() + 1);
+    }
+    return res;
+  };
+  const describirCron = (expr) => {
+    const f = expr.trim().split(/\s+/);
+    const seis = f.length === 6;
+    const [mi, ho, dm, me, ds] = seis ? f.slice(1) : f;
+    const sg = seis ? f[0] : null;
+    if (seis && sg.startsWith('*/') && mi === '*' && ho === '*') return `Cada ${sg.slice(2)} segundos.`;
+    if (mi.startsWith('*/') && ho === '*' && dm === '*' && me === '*' && ds === '*') return `Cada ${mi.slice(2)} minutos, en horas exactas del reloj (:00, :${p2(+mi.slice(2))}…).`;
+    if (/^\d+$/.test(mi) && /^[\d,]+$/.test(ho)) {
+      const horas = ho.split(',').map(h => hm(+h, +mi)).join(' y ');
+      let dias = 'todos los días';
+      if (ds === '1-5') dias = 'de lunes a viernes';
+      else if (/^\d$/.test(ds)) dias = `todos los ${DIAS[+ds % 7]}`;
+      else if (ds !== '*') dias = `los días de la semana ${ds}`;
+      if (dm !== '*') dias = `el día ${dm} ${me === '*' ? 'de cada mes' : 'de los meses ' + me}`;
+      return `${dias.charAt(0).toUpperCase() + dias.slice(1)} a las ${horas}.`;
+    }
+    return 'Horario personalizado: mira las próximas ejecuciones.';
+  };
+
+  const pintarPlan = () => {
+    const tipo = sInt.value;
+    document.querySelectorAll('#sched [data-show]').forEach(el => { el.hidden = !el.dataset.show.split(' ').includes(tipo); });
+    if (ETIQ[tipo]) { sNL.textContent = ETIQ[tipo]; sN.max = MAXN[tipo]; }
+    const n = Math.min(Math.max(parseInt(sN.value, 10) || 1, 1), MAXN[tipo] || 59);
+    const h = +sH.value, m = Math.min(Math.max(parseInt(sM.value, 10) || 0, 0), 59), dom = Math.min(Math.max(parseInt(sDom.value, 10) || 1, 1), 31);
+    const wd = sWd.filter(c => c.checked).map(c => +c.value);
+    const ahora = new Date();
+    let desc = '', eq = '—', next = [], err = '', regla = { field: tipo };
+    try {
+      switch (tipo) {
+        case 'seconds':
+        case 'minutes': {
+          const ms = n * (tipo === 'seconds' ? 1000 : 60000);
+          regla[tipo + 'Interval'] = n;
+          desc = `Cada ${n} ${tipo === 'seconds' ? (n === 1 ? 'segundo' : 'segundos') : (n === 1 ? 'minuto' : 'minutos')}, contando desde que publicas.`;
+          eq = (tipo === 'seconds' ? `*/${n} * * * * *` : `*/${n} * * * *`) + ' (con cron, alineado con el reloj)';
+          for (let i = 1; i <= 5; i++) next.push(new Date(ahora.getTime() + i * ms));
+          break;
+        }
+        case 'hours': {
+          regla.hoursInterval = n; regla.triggerAtMinute = m;
+          desc = n === 1 ? `Cada hora, en el minuto ${m}.` : `Cada ${n} horas, en el minuto ${m}.`;
+          eq = `${m} ${n === 1 ? '*' : '*/' + n} * * *`;
+          next = cronNext(parseCron(eq), ahora, 5);
+          break;
+        }
+        case 'days': {
+          regla.daysInterval = n; regla.triggerAtHour = h; regla.triggerAtMinute = m;
+          desc = n === 1 ? `Todos los días a las ${hm(h, m)}.` : `Cada ${n} días a las ${hm(h, m)}.`;
+          if (n === 1) eq = `${m} ${h} * * *`;
+          const d = new Date(ahora); d.setHours(h, m, 0, 0); if (d <= ahora) d.setDate(d.getDate() + 1);
+          for (let i = 0; i < 5; i++) { next.push(new Date(d)); d.setDate(d.getDate() + n); }
+          break;
+        }
+        case 'weeks': {
+          regla.weeksInterval = n; regla.triggerAtDay = wd; regla.triggerAtHour = h; regla.triggerAtMinute = m;
+          if (!wd.length) throw new Error('Marca al menos un día de la semana.');
+          const orden = [1, 2, 3, 4, 5, 6, 0].filter(x => wd.includes(x)).map(x => DIAS[x]);
+          desc = `${n === 1 ? 'Cada semana' : 'Cada ' + n + ' semanas'}, los ${orden.join(', ').replace(/, ([^,]+)$/, ' y $1')}, a las ${hm(h, m)}.`;
+          if (n === 1) eq = `${m} ${h} * * ${[...wd].sort().join(',')}`;
+          const lunes = x => { const t = new Date(x); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); return t; };
+          let base = null;
+          const d = new Date(ahora); d.setHours(h, m, 0, 0);
+          for (let i = 0; i < 800 && next.length < 5; i++) {
+            if (d > ahora && wd.includes(d.getDay())) {
+              if (!base) base = lunes(d);
+              const sem = Math.round((lunes(d) - base) / (7 * 864e5));
+              if (sem % n === 0) next.push(new Date(d));
+            }
+            d.setDate(d.getDate() + 1);
+          }
+          break;
+        }
+        case 'months': {
+          regla.monthsInterval = n; regla.triggerAtDayOfMonth = dom; regla.triggerAtHour = h; regla.triggerAtMinute = m;
+          desc = `${n === 1 ? 'Cada mes' : 'Cada ' + n + ' meses'}, el día ${dom} a las ${hm(h, m)}.` + (dom > 28 ? ` Si un mes no tiene día ${dom}, ese mes no se ejecuta.` : '');
+          if (n === 1) eq = `${m} ${h} ${dom} * *`;
+          let base = null;
+          for (let k = 0; k < 120 && next.length < 5; k++) {
+            const y = ahora.getFullYear(), mo = ahora.getMonth() + k;
+            const d = new Date(y, mo, dom, h, m, 0, 0);
+            if (d.getDate() !== dom || d <= ahora) continue;
+            if (base === null) base = k;
+            if ((k - base) % n === 0) next.push(d);
+          }
+          break;
+        }
+        default: {
+          const c = parseCron(sCron.value);
+          regla.expression = sCron.value.trim();
+          desc = describirCron(sCron.value);
+          eq = sCron.value.trim();
+          next = cronNext(c, ahora, 5);
+          if (!next.length) throw new Error('Esta expresión no se ejecuta en el próximo año.');
+        }
+      }
+    } catch (e) { err = e.message; }
+    if (tipo !== 'cronExpression' && n > 1 && eq === '—') eq = '— (cron no puede expresar «cada N días/semanas/meses» con exactitud)';
+    $s('sched').classList.toggle('fail', !!err);
+    $s('sc-desc').textContent = err ? 'Error: ' + err : desc;
+    $s('sc-eq').textContent = err ? '—' : eq;
+    $s('sc-tz').textContent = '(' + (Intl.DateTimeFormat().resolvedOptions().timeZone || 'hora local') + ')';
+    $s('sc-next').innerHTML = err ? '' : next.map(d => `<li>${fmt(d)}</li>`).join('');
+    $s('sc-json').textContent = JSON.stringify({ parameters: { rule: { interval: [regla] } }, type: 'n8n-nodes-base.scheduleTrigger', typeVersion: 1.4 }, null, 2);
+  };
+  [sInt, sN, sDom, sH, sM, sCron, ...sWd].forEach(el => { el.addEventListener('input', pintarPlan); el.addEventListener('change', pintarPlan); });
+  document.querySelectorAll('#sched [data-cron]').forEach(b => b.addEventListener('click', () => { sCron.value = b.dataset.cron; pintarPlan(); sCron.focus(); }));
+  pintarPlan();
+
+  /* ===== Probador de webhooks ===== */
+  const $h = id => document.getElementById(id);
+  const hNm = $h('hk-nm'), hPath = $h('hk-path'), hResp = $h('hk-resp'), hListen = $h('hk-listen'), hPub = $h('hk-pub');
+  const hRm = $h('hk-rm'), hQ = $h('hk-q'), hBody = $h('hk-body'), hUrl = $h('hk-url'), hCmd = $h('hk-cmd');
+  const hOut = $h('hk-out'), hItem = $h('hk-item'), hSt = $h('hk-st'), hMsg = $h('hk-msg');
+  const urlBtns = [...document.querySelectorAll('#hook [data-url]')];
+  let modo = 'test';
+  const ruta = () => hPath.value.trim().replace(/^\/+/, '') || 'ruta';
+  const url = () => `http://localhost:5678/${modo === 'test' ? 'webhook-test' : 'webhook'}/${ruta()}${hQ.value.trim() ? '?' + hQ.value.trim().replace(/^\?/, '') : ''}`;
+  const conBody = () => !['GET', 'DELETE'].includes(hRm.value);
+  const pintarCmd = () => {
+    urlBtns.forEach(b => b.setAttribute('aria-pressed', b.dataset.url === modo));
+    hUrl.textContent = url();
+    hBody.disabled = !conBody();
+    let compacto = '';
+    try { compacto = JSON.stringify(JSON.parse(hBody.value)); } catch (e) { compacto = hBody.value.replace(/\s+/g, ' '); }
+    const ps = `Invoke-RestMethod -Method ${hRm.value[0] + hRm.value.slice(1).toLowerCase()} -Uri "${url()}"` + (conBody() ? ` -ContentType "application/json" -Body '${compacto}'` : '');
+    const sh = `curl -X ${hRm.value} "${url()}"` + (conBody() ? ` \\\n  -H "Content-Type: application/json" \\\n  -d '${compacto}'` : '');
+    hCmd.textContent = '# PowerShell (Windows)\n' + ps + '\n\n# curl (macOS / Linux)\n' + sh;
+  };
+  const preparar = (b) => {
+    const t = (v) => { if (v === undefined || v === null) throw new Error("Cannot read properties of undefined (reading 'trim')"); return String(v).trim(); };
+    const title = s => s.toLowerCase().replace(/(^|[\s\-])(\p{L})/gu, (x, a, c) => a + c.toUpperCase());
+    const d = new Date();
+    return {
+      origen: 'webhook',
+      nombre: title(t(b?.nombre)),
+      email: t(b?.email).toLowerCase(),
+      tema: b?.tema ?? 'Otro',
+      mensaje: b?.mensaje,
+      modo: modo === 'test' ? 'test' : 'production',
+      recibido: `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`
+    };
+  };
+  const responder = (codigo, cuerpo, item, msg, tipoMsg) => {
+    hSt.textContent = codigo;
+    hSt.className = 'hook-st ' + (codigo < 300 ? 'ok' : 'bad');
+    hOut.textContent = typeof cuerpo === 'string' ? cuerpo : JSON.stringify(cuerpo, null, 2);
+    hItem.textContent = item ? JSON.stringify(item, null, 2) : 'El workflow no se ha ejecutado.';
+    hMsg.textContent = msg || '';
+    hMsg.className = 'hook-msg ' + (tipoMsg || '');
+  };
+  const enviar = () => {
+    const p = ruta();
+    if (modo === 'test' && !hListen.checked) {
+      return responder(404, { code: 404, message: `The requested webhook "${p}" is not registered.`, hint: "Click the 'Execute workflow' button on the canvas, then try again. (In test mode, the webhook only works for one call after you click this button)" }, null, 'La URL de prueba solo funciona justo después de pulsar «Listen for test event» (marca «Escuchando prueba»).', 'warn');
+    }
+    if (modo === 'prod' && !hPub.checked) {
+      return responder(404, { code: 404, message: `The requested webhook "${hRm.value} ${p}" is not registered.`, hint: 'The workflow must be active for a production URL to run successfully.' }, null, 'La URL de producción solo existe con el workflow publicado.', 'warn');
+    }
+    if (hRm.value !== hNm.value) {
+      return responder(404, { code: 404, message: `This webhook is not registered for ${hRm.value} requests. Did you mean to make a ${hNm.value} request?` }, null, 'El método de la petición no coincide con el HTTP Method del nodo.', 'warn');
+    }
+    let body = {};
+    if (conBody() && hBody.value.trim()) {
+      try { body = JSON.parse(hBody.value); }
+      catch (e) { return responder(400, { code: 400, message: 'Unexpected token in JSON body' }, null, 'El body no es un JSON válido: revisa comillas y comas.', 'bad'); }
+    }
+    const query = Object.fromEntries(new URLSearchParams(hQ.value.trim().replace(/^\?/, '')));
+    const item = {
+      headers: Object.assign({ host: 'localhost:5678', 'user-agent': 'curl/8.11.0', accept: '*/*' }, conBody() ? { 'content-type': 'application/json', 'content-length': String(new TextEncoder().encode(JSON.stringify(body)).length) } : {}),
+      params: {}, query, body,
+      webhookUrl: `http://localhost:5678/${modo === 'test' ? 'webhook-test' : 'webhook'}/${p}`,
+      executionMode: modo === 'test' ? 'test' : 'production'
+    };
+    let salida = null, fallo = null;
+    try { salida = preparar(body); } catch (e) { fallo = e.message; }
+    const extra = modo === 'test' ? ' La URL de prueba ya no escucha: para otra llamada, vuelve a marcar «Escuchando prueba».' : ' En producción el lienzo no cambia: la ejecución aparece en la pestaña Executions.';
+    if (modo === 'test') hListen.checked = false;
+    if (hResp.value === 'onReceived') {
+      return responder(200, { message: 'Workflow was started' }, item, 'n8n contesta al instante, sin esperar al resto del workflow.' + (fallo ? ' Ojo: «Preparar contacto» ha fallado, pero quien llama no se entera.' : '') + extra, fallo ? 'warn' : 'ok');
+    }
+    if (fallo) return responder(500, { message: 'Error in workflow' }, item, `«Preparar contacto» ha fallado: ${fallo}. Falta algún campo en el body.` + extra, 'bad');
+    if (hResp.value === 'lastNode') return responder(200, salida, item, 'Respuesta: el primer item del último nodo («Preparar contacto»).' + extra, 'ok');
+    return responder(200, { ok: true, mensaje: `Gracias, ${salida.nombre}` }, item, 'La respuesta la define el nodo Respond to Webhook (aquí, un ejemplo con ok y mensaje).' + extra, 'ok');
+  };
+  urlBtns.forEach(b => b.addEventListener('click', () => { modo = b.dataset.url; pintarCmd(); }));
+  [hPath, hQ, hBody, hRm].forEach(el => { el.addEventListener('input', pintarCmd); el.addEventListener('change', pintarCmd); });
+  $h('hk-send').addEventListener('click', enviar);
+  pintarCmd();
+}
+</script>
+</body>
+</html>
