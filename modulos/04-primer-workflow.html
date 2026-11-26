@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 4 · Tu primer workflow en n8n</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m4" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 4 · 35 minutos</span>
+    <h1>Tu primer workflow</h1>
+    <p class="lead">En el módulo anterior pegaste un workflow ya hecho. Ahora lo vas a construir tú desde cero: un trigger manual y dos nodos <em>Edit Fields</em> que crean los datos de un pedido y preparan un resumen.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#objetivo">Qué vas a construir</a><a href="#piezas">Las piezas</a><a href="#edit-fields">Edit Fields a fondo</a><a href="#simulador">Simulador</a><a href="#practica">Paso a paso</a><a href="#solucion">Solución</a><a href="#problemas">Problemas frecuentes</a><a href="#retos">Retos</a><a href="#test">Test</a>
+    </nav>
+
+    <div class="note info"><p>Este módulo usa <strong>n8n 2.x</strong> (la versión estable en noviembre de 2026 es la 2.49.6) y la versión 3.4 del nodo <em>Edit Fields</em>. Si ya usas n8n 3.x, los pasos son los mismos, aunque algún texto de la interfaz puede cambiar.</p></div>
+
+    <h2 id="objetivo">Qué vas a construir</h2>
+    <p>Un workflow de tres nodos que simula la llegada de un pedido y prepara un resumen listo para enviar por email o guardar en una hoja de cálculo. Más adelante cambiarás el trigger manual por un formulario o un webhook, pero la idea será la misma.</p>
+    <div class="flow" data-flujo="pedido"></div>
+    <p>Al ejecutarlo, el último nodo devolverá esto:</p>
+    <div class="code"><div class="h">Salida de «Preparar resumen» (vista JSON)</div><pre><code>[
+  {
+    <span class="k">"cliente"</span>: <span class="s">"Lucía Martín"</span>,
+    <span class="k">"total"</span>: <span class="v">99.8</span>,
+    <span class="k">"mensaje"</span>: <span class="s">"Pedido de Lucía Martín: 2 x Curso de n8n (99.8 €)"</span>
+  }
+]</code></pre></div>
+    <div class="note tip"><p>¿Por qué empezar así? Porque casi todos los workflows reales siguen este patrón: <strong>algo dispara</strong> el workflow, <strong>se preparan los datos</strong> y <strong>se hace algo con ellos</strong>. Si dominas la preparación de datos, el resto es cambiar piezas.</p></div>
+
+    <h2 id="piezas">Las piezas que vas a usar</h2>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Manual Trigger</h3><p>En el panel de nodos aparece como <strong>Trigger manually</strong>. Arranca el workflow cuando pulsas <em>Execute workflow</em> y nunca se ejecuta solo.</p><p style="margin:0">Sirve para probar un workflow antes de ponerle un trigger automático, o para tareas que quieres lanzar tú cuando quieras. Solo puede haber <strong>uno</strong> por workflow.</p></div>
+      <div class="card"><h3 style="margin-top:0">Edit Fields (Set)</h3><p>Crea campos nuevos o sobrescribe los que ya existen. Es el nodo más usado para <strong>preparar datos</strong>: renombrar, calcular, dar formato o quedarte solo con lo que necesitas.</p><p style="margin:0">Está en la categoría <em>Data transformation</em>. Su nombre técnico es <code>n8n-nodes-base.set</code>, por eso a veces lo verás llamado «nodo Set».</p></div>
+    </div>
+    <p>Entre nodo y nodo viajan <strong>items</strong>. Un item es un paquete de datos en formato JSON (pares <em>nombre: valor</em>). El trigger manual entrega un item vacío; el primer <em>Edit Fields</em> lo rellena; el segundo lo lee y crea uno nuevo. En el módulo 5 veremos los items con más detalle.</p>
+
+    <h2 id="edit-fields">El nodo Edit Fields a fondo</h2>
+    <h3>Dos modos de trabajo</h3>
+    <p>El parámetro <strong>Mode</strong> decide cómo defines los campos:</p>
+    <div class="tabs">
+      <div role="tablist" aria-label="Modos de Edit Fields">
+        <button role="tab" id="t-manual" aria-controls="p-manual" type="button">Manual Mapping</button>
+        <button role="tab" id="t-json" aria-controls="p-json" type="button">JSON</button>
+      </div>
+      <div role="tabpanel" id="p-manual" aria-labelledby="t-manual">
+        <p>El modo por defecto y el más cómodo para empezar. Pulsas <strong>Add Field</strong> y, para cada campo, escribes un <strong>nombre</strong>, eliges un <strong>tipo</strong> y pones un <strong>valor</strong>.</p>
+        <p>También puedes <strong>arrastrar</strong> un campo desde el panel <em>Input</em>: n8n crea un campo con el mismo nombre y, como valor, una expresión que lee ese dato (por ejemplo <code>{{ $json.cliente }}</code>).</p>
+      </div>
+      <div role="tabpanel" id="p-json" aria-labelledby="t-json">
+        <p>Escribes directamente el objeto JSON que quieres añadir. Es más rápido cuando hay muchos campos, listas u objetos anidados, y también admite expresiones.</p>
+        <div class="code"><div class="h">Ejemplo en modo JSON<button class="copy" type="button">Copiar</button></div><pre><code>{
+  <span class="k">"cliente"</span>: <span class="s">"Lucía Martín"</span>,
+  <span class="k">"precio"</span>: <span class="v">49.9</span>,
+  <span class="k">"etiquetas"</span>: [<span class="s">"formación"</span>, <span class="s">"online"</span>]
+}</code></pre></div>
+        <p>El JSON tiene que ser válido: comillas dobles en nombres y textos, y sin coma tras el último campo.</p>
+      </div>
+    </div>
+
+    <h3>Tipos de campo</h3>
+    <p>En <em>Manual Mapping</em>, cada campo tiene un tipo. El tipo importa: el número <code>2</code> se puede sumar, pero el texto <code>"2"</code> no.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Tipo</th><th>Para qué</th><th>Ejemplo de valor</th></tr></thead>
+      <tbody>
+        <tr><td><strong>String</strong></td><td>Texto</td><td><code>Lucía Martín</code></td></tr>
+        <tr><td><strong>Number</strong></td><td>Números con los que vas a calcular. El decimal se escribe con <strong>punto</strong></td><td><code>49.9</code></td></tr>
+        <tr><td><strong>Boolean</strong></td><td>Sí o no</td><td><code>true</code> / <code>false</code></td></tr>
+        <tr><td><strong>Array</strong></td><td>Una lista de valores, en formato JSON</td><td><code>["formación", "online"]</code></td></tr>
+        <tr><td><strong>Object</strong></td><td>Un grupo de campos, en formato JSON</td><td><code>{"ciudad": "Sevilla"}</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Valor fijo o expresión</h3>
+    <p>Si pasas el ratón por encima de un valor aparece el selector <strong>Fixed | Expression</strong>:</p>
+    <ul>
+      <li><strong>Fixed</strong> (fijo): el valor es exactamente lo que escribes. <code>Lucía Martín</code> siempre será <code>Lucía Martín</code>.</li>
+      <li><strong>Expression</strong>: lo que va entre <code>{{ }}</code> se calcula al ejecutar. <code>{{ $json.precio * $json.cantidad }}</code> multiplica dos campos del item que llega. Debajo del campo verás una vista previa del resultado.</li>
+    </ul>
+    <p>En este módulo solo usarás expresiones sencillas del tipo <code>$json.campo</code>. Las expresiones tienen su propio módulo, el 5.</p>
+
+    <h3>¿Qué pasa con los campos que ya traía el item?</h3>
+    <p>Por defecto, <em>Edit Fields</em> devuelve <strong>solo los campos que defines</strong> y descarta el resto. Si quieres conservarlos, activa <strong>Include Other Input Fields</strong> y elige cuáles en <em>Input Fields to Include</em>: todos (<em>All</em>), algunos (<em>Selected</em>) o todos menos algunos (<em>All Except</em>).</p>
+    <div class="note warn"><p>Es la confusión más habitual al empezar: «he añadido un campo y han desaparecido los demás». No se han perdido; simplemente el nodo no los incluye en su salida. Activa <em>Include Other Input Fields</em> si los necesitas más adelante.</p></div>
+
+    <h3>Opciones útiles</h3>
+    <p>Con el botón <strong>Add option</strong>, al final del nodo, tienes ajustes extra:</p>
+    <ul class="lines">
+      <li><code>Support Dot Notation</code><span>Activada por defecto. Un nombre con punto, como <code>cliente.nombre</code>, crea un objeto anidado: <code>{"cliente": {"nombre": …}}</code>. Si la desactivas, se crea un campo que se llama literalmente <code>cliente.nombre</code>.</span></li>
+      <li><code>Ignore Type Conversion Errors</code><span>Si un valor no encaja con su tipo (por ejemplo, <code>dos</code> en un campo Number), el nodo no falla y deja el valor tal cual. Úsala con cuidado: esconde errores.</span></li>
+      <li><code>Include Binary File</code><span>Si el item trae archivos (imágenes, PDF…), decide si pasan al siguiente nodo.</span></li>
+    </ul>
+
+    <h2 id="simulador">Simulador del nodo Edit Fields</h2>
+    <p>Antes de ir a n8n, practica aquí. Arriba tienes los campos del nodo; debajo, el item que entra (<em>Input</em>, lo que crearía el nodo «Datos del pedido») y lo que saldría (<em>Output</em>). Cambia lo que quieras: la salida se actualiza al momento.</p>
+    <div class="sim" id="sim">
+      <div class="sim-par">
+        <h4>Parameters · Fields to Set</h4>
+        <div class="sim-head" aria-hidden="true"><span>Nombre</span><span>Tipo</span><span>Valor</span><span></span></div>
+        <div id="sim-filas"></div>
+        <div class="sim-btns">
+          <button class="btn sm" type="button" id="sim-add">+ Add Field</button>
+          <button class="btn ghost sm" type="button" id="sim-reset">Restablecer ejemplo</button>
+        </div>
+        <div class="sim-opts">
+          <label><input type="checkbox" id="sim-incl"> Include Other Input Fields</label>
+          <label><input type="checkbox" id="sim-dot" checked> Support Dot Notation</label>
+          <label><input type="checkbox" id="sim-ign"> Ignore Type Conversion Errors</label>
+        </div>
+      </div>
+      <div class="sim-in"><h4>Input</h4><pre id="sim-in"></pre></div>
+      <div class="sim-out"><h4>Output</h4><pre id="sim-out"></pre><div class="sim-msg" id="sim-msg" aria-live="polite"></div></div>
+    </div>
+    <div class="note tip"><p><strong>Experimenta:</strong> 1) activa <em>Include Other Input Fields</em> y mira qué aparece; 2) cambia el tipo de <code>total</code> a <em>String</em> y fíjate en las comillas; 3) crea un campo llamado <code>envio.ciudad</code> con el valor <code>Sevilla</code>; 4) escribe <code>49,9</code> en un campo Number y observa el error. El simulador entiende <code>{{ $json.campo }}</code> y operaciones sencillas (<code>+ - * /</code>).</p></div>
+
+    <h2 id="practica">Paso a paso en n8n</h2>
+    <p>Abre n8n en <code>http://localhost:5678</code>. Esta vez no vas a pegar nada: construirás cada nodo a mano.</p>
+    <ol class="steps">
+      <li><strong>Crea el workflow.</strong> En <em>Overview</em>, pulsa <strong>Create workflow</strong> y renómbralo como <strong>Ficha de pedido</strong>.</li>
+      <li><strong>Añade el trigger.</strong> Pulsa el <strong>+</strong> del centro del lienzo, busca <em>«manual»</em> y elige <strong>Trigger manually</strong>. Selecciónalo, pulsa <kbd>F2</kbd> y llámalo <strong>Al pulsar Ejecutar</strong>.</li>
+      <li><strong>Añade el primer Edit Fields.</strong> Pulsa el <strong>+</strong> que sale a la derecha del trigger, busca <em>«edit fields»</em> y elige <strong>Edit Fields (Set)</strong>. Se abre su vista de detalle. Haz clic en el título del nodo y renómbralo como <strong>Datos del pedido</strong>.</li>
+      <li><strong>Define los campos.</strong> Deja <em>Mode</em> en <em>Manual Mapping</em>. Pulsa <strong>Add Field</strong> y crea estos seis campos, eligiendo el tipo en el desplegable de cada uno:
+        <div class="scroll"><table class="stack">
+          <thead><tr><th>Nombre</th><th>Tipo</th><th>Valor</th></tr></thead>
+          <tbody>
+            <tr><td><code>cliente</code></td><td>String</td><td><code>Lucía Martín</code></td></tr>
+            <tr><td><code>producto</code></td><td>String</td><td><code>Curso de n8n</code></td></tr>
+            <tr><td><code>precio</code></td><td>Number</td><td><code>49.9</code></td></tr>
+            <tr><td><code>cantidad</code></td><td>Number</td><td><code>2</code></td></tr>
+            <tr><td><code>pagado</code></td><td>Boolean</td><td><code>true</code></td></tr>
+            <tr><td><code>etiquetas</code></td><td>Array</td><td><code>["formación", "online"]</code></td></tr>
+          </tbody>
+        </table></div>
+      </li>
+      <li><strong>Prueba el nodo.</strong> Pulsa <strong>Execute step</strong> (arriba, en la vista de detalle). En <em>Output</em> verás tu item. Cambia a la vista <em>JSON</em> y comprueba que <code>precio</code> y <code>cantidad</code> salen sin comillas (son números) y que <code>etiquetas</code> es una lista.</li>
+      <li><strong>Añade el segundo Edit Fields.</strong> Cierra la vista de detalle, pulsa el <strong>+</strong> a la derecha de «Datos del pedido», añade otro <strong>Edit Fields (Set)</strong> y llámalo <strong>Preparar resumen</strong>. Ahora el panel <em>Input</em> de la izquierda muestra los seis campos del nodo anterior.</li>
+      <li><strong>Arrastra un campo.</strong> En el panel <em>Input</em>, en vista <em>Schema</em>, arrastra <code>cliente</code> hasta la zona <em>Fields to Set</em> y suéltalo. n8n crea el campo <code>cliente</code> con el valor <code>{{ $json.cliente }}</code> en modo <em>Expression</em>.</li>
+      <li><strong>Calcula el total.</strong> Pulsa <strong>Add Field</strong>: nombre <code>total</code>, tipo <strong>Number</strong>. Pasa el valor a modo <em>Expression</em> (selector <em>Fixed | Expression</em>) y escribe <code>{{ $json.precio * $json.cantidad }}</code>. La vista previa debe mostrar <code>99.8</code>.</li>
+      <li><strong>Escribe el mensaje.</strong> Añade un campo <code>mensaje</code> de tipo <strong>String</strong>, en modo <em>Expression</em>, con este valor:
+        <div class="code"><div class="h">Valor del campo «mensaje»<button class="copy" type="button">Copiar</button></div><pre><code>Pedido de {{ $json.cliente }}: {{ $json.cantidad }} x {{ $json.producto }} ({{ $json.precio * $json.cantidad }} €)</code></pre></div>
+        Fíjate en que puedes mezclar texto fijo y expresiones en el mismo campo.</li>
+      <li><strong>Ejecuta el workflow completo.</strong> Cierra la vista de detalle y pulsa <strong>Execute workflow</strong> (<kbd>Ctrl</kbd> + <kbd>Enter</kbd>). Los tres nodos se ponen en verde y cada conexión muestra «1 item». Abre «Preparar resumen» y comprueba que la salida coincide con la del principio del módulo.</li>
+      <li><strong>Prueba Include Other Input Fields.</strong> En «Preparar resumen», activa <em>Include Other Input Fields</em> (con <em>All</em>) y pulsa <em>Execute step</em>: ahora la salida tiene nueve campos. Vuelve a desactivarlo para quedarte solo con el resumen.</li>
+      <li><strong>Guarda una copia.</strong> El workflow ya se ha guardado solo. Aun así, descárgalo como archivo desde el menú <strong>⋯</strong> de la cabecera → <em>Download</em>. Así tendrás una copia de tu primer workflow.</li>
+    </ol>
+    <div class="note info"><p>Este workflow <strong>no necesita publicarse</strong>: empieza con un trigger manual, así que solo se ejecuta cuando tú lo pulsas. En el módulo 6 lo cambiarás por un trigger automático y entonces sí lo publicarás.</p></div>
+
+    <h2 id="solucion">Solución</h2>
+    <p>Si algo no te cuadra, compara tu workflow con este. Puedes copiarlo y pegarlo en un lienzo vacío con <kbd>Ctrl</kbd> + <kbd>V</kbd>.</p>
+    <div class="code"><div class="h">Workflow «Ficha de pedido» (JSON para pegar en el lienzo)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e01",
+      "name": "Al pulsar Ejecutar"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e02", "name": "cliente", "value": "Lucía Martín", "type": "string" },
+            { "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e03", "name": "producto", "value": "Curso de n8n", "type": "string" },
+            { "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e04", "name": "precio", "value": 49.9, "type": "number" },
+            { "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e05", "name": "cantidad", "value": 2, "type": "number" },
+            { "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e06", "name": "pagado", "value": true, "type": "boolean" },
+            { "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e07", "name": "etiquetas", "value": "[\"formación\", \"online\"]", "type": "array" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e08",
+      "name": "Datos del pedido"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e09", "name": "cliente", "value": "={{ $json.cliente }}", "type": "string" },
+            { "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e10", "name": "total", "value": "={{ $json.precio * $json.cantidad }}", "type": "number" },
+            { "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e11", "name": "mensaje", "value": "=Pedido de {{ $json.cliente }}: {{ $json.cantidad }} x {{ $json.producto }} ({{ $json.precio * $json.cantidad }} €)", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [440, 0],
+      "id": "a4c2e1f0-4b6d-4c8e-9f10-2a3b4c5d6e12",
+      "name": "Preparar resumen"
+    }
+  ],
+  "connections": {
+    "Al pulsar Ejecutar": {
+      "main": [[{ "node": "Datos del pedido", "type": "main", "index": 0 }]]
+    },
+    "Datos del pedido": {
+      "main": [[{ "node": "Preparar resumen", "type": "main", "index": 0 }]]
+    }
+  }
+}</code></pre></div>
+    <p>Dos detalles que revela el JSON:</p>
+    <ul>
+      <li>Los valores que empiezan por <code>=</code> son <strong>expresiones</strong>. Así guarda n8n el modo <em>Expression</em>.</li>
+      <li>Las conexiones se definen por el <strong>nombre</strong> de los nodos. Por eso no puede haber dos nodos con el mismo nombre en un workflow.</li>
+    </ul>
+
+    <h2 id="problemas">Problemas frecuentes</h2>
+    <div class="faq">
+      <details><summary>Error: el campo «expects a number» al ejecutar</summary><div><p>Has puesto en un campo <em>Number</em> algo que no es un número. Lo más típico en español: escribir el decimal con coma (<code>49,9</code>). Usa punto: <code>49.9</code>.</p></div></details>
+      <details><summary>En la salida aparece el texto <code>{{ $json.cliente }}</code> tal cual</summary><div><p>El campo está en modo <em>Fixed</em>. Pasa el ratón por encima del valor y cambia a <em>Expression</em>. En modo expresión el campo cambia de aspecto y muestra una vista previa debajo.</p></div></details>
+      <details><summary>La vista previa de la expresión sale vacía o en rojo</summary><div><p>Revisa dos cosas: que el nombre del campo está bien escrito (<code>Cliente</code> y <code>cliente</code> son distintos) y que el nodo anterior se ha ejecutado al menos una vez. Si no hay datos de entrada, n8n no puede calcular la vista previa: pulsa <em>Execute previous nodes</em> o ejecuta el workflow.</p></div></details>
+      <details><summary>He añadido un campo y han desaparecido todos los demás</summary><div><p>Es el comportamiento por defecto: <em>Edit Fields</em> solo devuelve los campos que defines. Activa <em>Include Other Input Fields</em> para conservar el resto.</p></div></details>
+      <details><summary>Error al crear un campo Array u Object</summary><div><p>El valor debe ser JSON válido: <code>["formación", "online"]</code> con comillas <strong>dobles</strong>. Con comillas simples (<code>['formación']</code>) falla.</p></div></details>
+      <details><summary>«Only one 'Manual Trigger' node is allowed in a workflow»</summary><div><p>Tienes dos triggers manuales, por ejemplo porque has pegado la solución sobre tu propio workflow. Borra uno de los dos.</p></div></details>
+    </div>
+
+    <h2 id="retos">Retos para practicar</h2>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Reto 1 · Más campos</h3><p style="margin:0">En «Preparar resumen», añade un campo <code>pagado</code> que copie el del nodo anterior (arrástralo) y otro llamado <code>fecha</code>, de tipo String, con la expresión <code>{{ $now.toFormat('dd/MM/yyyy') }}</code>.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 2 · Modo JSON</h3><p style="margin:0">Duplica «Datos del pedido» (<kbd>Ctrl</kbd> + <kbd>C</kbd> / <kbd>Ctrl</kbd> + <kbd>V</kbd>), cambia el <em>Mode</em> a <em>JSON</em> y consigue exactamente la misma salida escribiendo el objeto a mano.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 3 · Datos anidados</h3><p style="margin:0">Cambia el nombre del campo <code>cliente</code> de «Datos del pedido» por <code>cliente.nombre</code> y añade <code>cliente.ciudad</code>. ¿Qué cambia en la salida? ¿Qué tienes que corregir en «Preparar resumen»?</p></div>
+    </div>
+    <details class="term"><summary><i>?</i>Ver la solución del reto 2</summary><p>En modo JSON, escribe esto en el campo <em>JSON Output</em>:</p>
+      <div class="code"><div class="h">JSON Output<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "cliente": "Lucía Martín",
+  "producto": "Curso de n8n",
+  "precio": 49.9,
+  "cantidad": 2,
+  "pagado": true,
+  "etiquetas": ["formación", "online"]
+}</code></pre></div>
+    </details>
+    <details class="term"><summary><i>?</i>Ver la solución del reto 3</summary><p>Con <em>Support Dot Notation</em> activada, la salida pasa a tener un objeto: <code>"cliente": { "nombre": "Lucía Martín", "ciudad": "…" }</code>. En «Preparar resumen», las expresiones deben leer <code>{{ $json.cliente.nombre }}</code> en lugar de <code>{{ $json.cliente }}</code>.</p></details>
+
+    <h3>Comprueba tu práctica</h3>
+    <ul class="check" id="checklist" data-ok="¡Enhorabuena! Has construido tu primer workflow desde cero.">
+      <li><label><input type="checkbox"><span>He creado el workflow «Ficha de pedido» con un trigger manual</span></label></li>
+      <li><label><input type="checkbox"><span>He creado seis campos con los tipos correctos en «Datos del pedido»</span></label></li>
+      <li><label><input type="checkbox"><span>He probado un nodo suelto con Execute step</span></label></li>
+      <li><label><input type="checkbox"><span>He arrastrado un campo desde Input para crear una expresión</span></label></li>
+      <li><label><input type="checkbox"><span>He calculado el total y el mensaje con expresiones</span></label></li>
+      <li><label><input type="checkbox"><span>He probado Include Other Input Fields y entiendo qué hace</span></label></li>
+      <li><label><input type="checkbox"><span>He descargado una copia del workflow</span></label></li>
+    </ul>
+    <p class="check-msg" id="check-msg" aria-live="polite"></p>
+
+    <h2 id="test">Comprueba lo que has aprendido</h2>
+    <div id="quiz" class="quiz"></div>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="03-el-editor.html">← Módulo 3: El editor</a>
+      <a class="btn" href="05-datos-expresiones.html">Módulo 5: Datos y expresiones →</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Basado en la <a href="https://docs.n8n.io/">documentación oficial</a> de n8n 2.x · Revisado en noviembre de 2026</footer>
+
+<script>
+window.FLUJOS = {
+  pedido: [
+    { tipo: 'trig', ico: '▶', t: 'Al pulsar Ejecutar', d: 'Manual Trigger: da la salida' },
+    { ico: '✎', t: 'Datos del pedido', d: 'Edit Fields: crea 6 campos' },
+    { ico: '✎', t: 'Preparar resumen', d: 'Edit Fields: calcula y resume' }
+  ]
+};
+window.QUIZ = [
+  { p: '¿Cuántos nodos Manual Trigger puede tener un workflow?', o: ['Uno', 'Dos: uno para pruebas y otro para producción', 'Tantos como quieras'], c: 0, e: 'Solo se permite uno. Si añades otro, n8n muestra un error.' },
+  { p: 'Por defecto, ¿qué devuelve un nodo Edit Fields?', o: ['Todos los campos de entrada más los nuevos', 'Solo los campos que defines en él', 'Solo los campos de entrada, sin cambios'], c: 1, e: 'Para conservar los campos de entrada hay que activar Include Other Input Fields.' },
+  { p: '¿Cómo escribes un precio de 49 euros y 90 céntimos en un campo Number?', o: ['49,9', '49.9', '"49.9"'], c: 1, e: 'Los números usan punto decimal. Con coma, n8n no puede convertir el valor a Number.' },
+  { p: 'Un campo muestra en la salida el texto literal {{ $json.cliente }}. ¿Qué ocurre?', o: ['El campo cliente no existe', 'El valor está en modo Fixed en lugar de Expression', 'Falta publicar el workflow'], c: 1, e: 'En modo Fixed, n8n no calcula nada: usa el texto tal cual.' },
+  { p: '¿Qué hace n8n cuando arrastras un campo del panel Input a Fields to Set?', o: ['Copia el valor actual como texto fijo', 'Crea un campo con el mismo nombre y una expresión que lee ese dato', 'Mueve el campo y lo borra del nodo anterior'], c: 1, e: 'Crea un campo con expresión, por ejemplo {{ $json.cliente }}, que se recalcula en cada ejecución.' },
+  { p: 'Con Support Dot Notation activada, ¿qué produce un campo llamado cliente.ciudad?', o: ['Un campo cuyo nombre es "cliente.ciudad"', 'Un objeto cliente con un campo ciudad dentro', 'Un error de nombre no válido'], c: 1, e: 'El punto crea un objeto anidado: { "cliente": { "ciudad": … } }.' }
+];
+</script>
+<script src="../js/main.js"></script>
+<script>
+{
+  /* Simulador del nodo Edit Fields */
+  const ENTRADA = { cliente: 'Lucía Martín', producto: 'Curso de n8n', precio: 49.9, cantidad: 2, pagado: true, etiquetas: ['formación', 'online'] };
+  const INICIAL = [
+    { n: 'cliente', t: 'string', v: '{{ $json.cliente }}' },
+    { n: 'total', t: 'number', v: '{{ $json.precio * $json.cantidad }}' },
+    { n: 'mensaje', t: 'string', v: 'Pedido de {{ $json.cliente }}: {{ $json.cantidad }} x {{ $json.producto }}' }
+  ];
+  const TIPOS = [['string', 'String'], ['number', 'Number'], ['boolean', 'Boolean'], ['array', 'Array'], ['object', 'Object']];
+  const NOMBRE_TIPO = Object.fromEntries(TIPOS);
+  const sim = document.getElementById('sim');
+  const filas = document.getElementById('sim-filas');
+  const salida = document.getElementById('sim-out');
+  const msg = document.getElementById('sim-msg');
+  const opt = id => document.getElementById(id).checked;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  document.getElementById('sim-in').textContent = JSON.stringify([ENTRADA], null, 2);
+
+  let cuenta = 0;
+  const fila = f => {
+    const i = ++cuenta;
+    return `<div class="sim-row">
+      <input type="text" class="nm" aria-label="Nombre del campo ${i}" value="${esc(f.n)}" placeholder="nombre" spellcheck="false" autocomplete="off">
+      <select class="tp" aria-label="Tipo del campo ${i}">${TIPOS.map(([v, l]) => `<option value="${v}"${v === f.t ? ' selected' : ''}>${l}</option>`).join('')}</select>
+      <input type="text" class="vl" aria-label="Valor del campo ${i}" value="${esc(f.v)}" placeholder="valor" spellcheck="false" autocomplete="off">
+      <button type="button" class="del" aria-label="Borrar campo ${i}" title="Borrar campo">×</button>
+    </div>`;
+  };
+
+  /* Expresiones: solo $json.campo y aritmética básica */
+  const leer = ruta => ruta.split('.').reduce((o, k) => (o == null ? undefined : o[k]), ENTRADA);
+  const evaluar = (expr, avisos) => {
+    const e = expr.trim();
+    const sola = e.match(/^\$json\.([\wÀ-ÿ.]+)$/);
+    if (sola) {
+      const v = leer(sola[1]);
+      if (v === undefined) avisos.push(`El campo «${sola[1]}» no existe en la entrada (revisa mayúsculas y tildes).`);
+      return v === undefined ? null : v;
+    }
+    let problema = '';
+    const cuenta = e.replace(/\$json\.([\wÀ-ÿ.]+)/g, (_, r) => {
+      const v = leer(r);
+      if (typeof v !== 'number') problema = v === undefined ? `el campo «${r}» no existe` : `«${r}» no es un número`;
+      return String(v);
+    });
+    if (problema) throw new Error('No se puede calcular la expresión: ' + problema + '.');
+    if (!/^[\d\s+\-*/().]+$/.test(cuenta)) throw new Error('El simulador solo entiende $json.campo y operaciones + - * / (n8n admite mucho más; lo verás en el módulo 5).');
+    const r = Function('"use strict";return (' + cuenta + ')')();
+    if (typeof r !== 'number' || !isFinite(r)) throw new Error('La operación no da un número válido.');
+    return Math.round(r * 1e10) / 1e10;
+  };
+  const resolver = (txt, avisos) => {
+    const partes = [...txt.matchAll(/\{\{([\s\S]*?)\}\}/g)];
+    if (!partes.length) return txt;
+    if (partes.length === 1 && partes[0][0] === txt.trim()) return evaluar(partes[0][1], avisos);
+    return txt.replace(/\{\{([\s\S]*?)\}\}/g, (_, x) => {
+      const r = evaluar(x, avisos);
+      return r !== null && typeof r === 'object' ? JSON.stringify(r) : String(r);
+    });
+  };
+  const convertir = (v, t) => {
+    if (v === null) return null;
+    if (t === 'string') return typeof v === 'object' ? JSON.stringify(v) : String(v);
+    if (t === 'number') {
+      if (typeof v === 'number') return v;
+      const s = String(v).trim(), x = Number(s);
+      if (s === '' || isNaN(x)) throw new Error(`espera un Number pero ha recibido «${s}»` + (/^\d+,\d+$/.test(s) ? ' (usa punto decimal, no coma)' : '') + '.');
+      return x;
+    }
+    if (t === 'boolean') {
+      if (typeof v === 'boolean') return v;
+      const s = String(v).trim().toLowerCase();
+      if (s === 'true' || s === '1') return true;
+      if (s === 'false' || s === '0') return false;
+      throw new Error(`espera un Boolean (true o false) pero ha recibido «${v}».`);
+    }
+    let x = v;
+    if (typeof v === 'string') {
+      try { x = JSON.parse(v); } catch (e) { throw new Error(`espera un ${NOMBRE_TIPO[t]} en JSON válido (comillas dobles).`); }
+    }
+    const ok = t === 'array' ? Array.isArray(x) : (x !== null && typeof x === 'object' && !Array.isArray(x));
+    if (!ok) throw new Error(`espera un ${NOMBRE_TIPO[t]} pero el valor no lo es.`);
+    return x;
+  };
+  const poner = (obj, nombre, valor, puntos) => {
+    if (!puntos || !nombre.includes('.')) { obj[nombre] = valor; return; }
+    const ks = nombre.split('.').filter(Boolean);
+    let o = obj;
+    ks.slice(0, -1).forEach(k => {
+      if (o[k] === null || typeof o[k] !== 'object' || Array.isArray(o[k])) o[k] = {};
+      o = o[k];
+    });
+    o[ks[ks.length - 1]] = valor;
+  };
+
+  const calcular = () => {
+    const out = opt('sim-incl') ? JSON.parse(JSON.stringify(ENTRADA)) : {};
+    const puntos = opt('sim-dot'), ignorar = opt('sim-ign');
+    const avisos = [], errores = [];
+    [...filas.querySelectorAll('.sim-row')].forEach((r, i) => {
+      const nombre = r.querySelector('.nm').value.trim();
+      const tipo = r.querySelector('.tp').value;
+      r.classList.remove('bad');
+      if (!nombre) { avisos.push(`El campo ${i + 1} no tiene nombre y se ignora.`); return; }
+      try {
+        const v = resolver(r.querySelector('.vl').value, avisos);
+        let final;
+        try { final = convertir(v, tipo); } catch (e) {
+          if (!ignorar) throw new Error(`«${nombre}» ${e.message}`);
+          final = v;
+          avisos.push(`«${nombre}» no encaja con su tipo, pero se deja tal cual porque está activada Ignore Type Conversion Errors.`);
+        }
+        poner(out, nombre, final, puntos);
+      } catch (e) { r.classList.add('bad'); errores.push(e.message); }
+    });
+    if (errores.length) {
+      salida.textContent = '// El nodo ha fallado.\n// En n8n se marcaría en rojo y el workflow se detendría aquí.';
+      sim.classList.add('fail');
+    } else {
+      salida.textContent = JSON.stringify([out], null, 2);
+      sim.classList.remove('fail');
+    }
+    msg.innerHTML = errores.map(t => `<p class="err">${esc(t)}</p>`).join('') + avisos.map(t => `<p class="warn">${esc(t)}</p>`).join('') +
+      (!errores.length && !avisos.length ? `<p class="ok">1 item · ${Object.keys(out).length} campos</p>` : '');
+  };
+
+  const cargar = lista => { filas.innerHTML = lista.map(fila).join(''); calcular(); };
+  sim.addEventListener('input', calcular);
+  sim.addEventListener('change', calcular);
+  filas.addEventListener('click', e => {
+    const b = e.target.closest('.del');
+    if (!b) return;
+    const r = b.closest('.sim-row');
+    const sig = r.nextElementSibling || r.previousElementSibling;
+    r.remove();
+    calcular();
+    const foco = sig ? sig.querySelector('.del') : document.getElementById('sim-add');
+    foco.focus();
+  });
+  document.getElementById('sim-add').addEventListener('click', () => {
+    filas.insertAdjacentHTML('beforeend', fila({ n: '', t: 'string', v: '' }));
+    filas.lastElementChild.querySelector('.nm').focus();
+    calcular();
+  });
+  document.getElementById('sim-reset').addEventListener('click', () => {
+    ['sim-incl', 'sim-ign'].forEach(id => { document.getElementById(id).checked = false; });
+    document.getElementById('sim-dot').checked = true;
+    cargar(INICIAL);
+  });
+  cargar(INICIAL);
+}
+</script>
+</body>
+</html>

@@ -7,8 +7,8 @@
     { id: 'm1', t: '¿Qué es n8n?', f: 'modulos/01-que-es-n8n.html', d: 'Conceptos y ejemplos' },
     { id: 'm2', t: 'Instalación con Docker', f: 'modulos/02-instalacion-docker.html', d: 'n8n en tu ordenador' },
     { id: 'm3', t: 'El editor', f: 'modulos/03-el-editor.html', d: 'Lienzo, nodos y ejecución' },
-    { id: 'm4', t: 'Primer workflow', d: 'Próximamente' },
-    { id: 'm5', t: 'Datos y expresiones', d: 'Próximamente' },
+    { id: 'm4', t: 'Primer workflow', f: 'modulos/04-primer-workflow.html', d: 'Trigger manual y Edit Fields' },
+    { id: 'm5', t: 'Datos y expresiones', f: 'modulos/05-datos-expresiones.html', d: 'Items, JSON y expresiones' },
     { id: 'm6', t: 'Triggers', d: 'Próximamente' },
     { id: 'm7', t: 'Lógica y bucles', d: 'Próximamente' },
     { id: 'm8', t: 'Credenciales e integraciones', d: 'Próximamente' },
@@ -155,6 +155,14 @@
     activar(guardada < btns.length ? guardada : 0);
   });
 
+  /* ---- Tablas apilables: etiqueta de cada celda para móvil ---- */
+  document.querySelectorAll('table.stack').forEach(tabla => {
+    const cab = [...tabla.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    tabla.querySelectorAll('tbody tr').forEach(tr => {
+      [...tr.children].forEach((td, i) => { if (cab[i] && !td.dataset.l) td.dataset.l = cab[i]; });
+    });
+  });
+
   /* ---- Diagramas de nodos ---- */
   const FLUJOS = window.FLUJOS || {};
   document.querySelectorAll('.flow[data-flujo]').forEach(el => {
@@ -212,7 +220,7 @@
     const actualizar = () => {
       const marcados = cajas.map((c, i) => c.checked ? i : -1).filter(i => i >= 0);
       store.set('check-' + page, marcados);
-      if (msg) msg.textContent = marcados.length === cajas.length ? '¡Todo listo! Ya tienes n8n funcionando en tu equipo.' : `${marcados.length} de ${cajas.length} comprobaciones hechas`;
+      if (msg) msg.textContent = marcados.length === cajas.length ? (check.dataset.ok || '¡Todo listo! Ya tienes n8n funcionando en tu equipo.') : `${marcados.length} de ${cajas.length} comprobaciones hechas`;
     };
     cajas.forEach((c, i) => { c.checked = guardado.includes(i); c.addEventListener('change', actualizar); });
     actualizar();

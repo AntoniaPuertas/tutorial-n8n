@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 5 · Datos y expresiones en n8n</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m5" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 5 · 45 minutos</span>
+    <h1>Datos y expresiones</h1>
+    <p class="lead">Para dominar n8n tienes que entender dos cosas: cómo viajan los datos entre nodos (los <strong>items</strong>) y cómo se leen y transforman (las <strong>expresiones</strong>). En este módulo aprenderás ambas, con un laboratorio para practicar sin miedo a romper nada.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#items">Los items</a><a href="#por-item">Item a item</a><a href="#json">JSON en 5 minutos</a><a href="#expresiones">Expresiones</a><a href="#variables">Variables</a><a href="#funciones">Funciones</a><a href="#laboratorio">Laboratorio</a><a href="#practica">Práctica</a><a href="#solucion">Solución</a><a href="#problemas">Problemas</a><a href="#test">Test</a>
+    </nav>
+
+    <div class="note info"><p>Basado en la documentación de <strong>n8n 2.x</strong> (estable 2.49.6 en noviembre de 2026). Las expresiones funcionan igual en el editor y en producción.</p></div>
+
+    <h2 id="items">Todo lo que viaja son items</h2>
+    <p>Los datos que pasan de un nodo a otro son siempre <strong>una lista de items</strong>. Cada item es un objeto con los datos guardados bajo la clave <code>json</code> y, si hay archivos (una imagen, un PDF), bajo la clave <code>binary</code>.</p>
+    <div class="grid">
+      <div class="code" style="margin:0"><div class="h">Lo que n8n guarda por dentro</div><pre><code>[
+  { <span class="k">"json"</span>: { <span class="k">"nombre"</span>: <span class="s">"Lucía"</span>, <span class="k">"ciudad"</span>: <span class="s">"Sevilla"</span> } },
+  { <span class="k">"json"</span>: { <span class="k">"nombre"</span>: <span class="s">"Jorge"</span>, <span class="k">"ciudad"</span>: <span class="s">"Bilbao"</span> } }
+]</code></pre></div>
+      <div class="code" style="margin:0"><div class="h">Lo que ves en la vista JSON</div><pre><code>[
+  { <span class="k">"nombre"</span>: <span class="s">"Lucía"</span>, <span class="k">"ciudad"</span>: <span class="s">"Sevilla"</span> },
+  { <span class="k">"nombre"</span>: <span class="s">"Jorge"</span>, <span class="k">"ciudad"</span>: <span class="s">"Bilbao"</span> }
+]</code></pre></div>
+    </div>
+    <p>El editor te ahorra la capa <code>json</code>: en la vista <em>JSON</em> ves directamente el contenido. Pero conviene saber que existe, porque reaparece en las expresiones (<code>$('Nodo').item.json</code>) y en el nodo <em>Code</em> (módulo 9).</p>
+    <div class="note tip"><p>Fíjate en las conexiones del lienzo después de ejecutar: el número que aparece sobre cada flecha («3 items») es el tamaño de esa lista.</p></div>
+
+    <h2 id="por-item">Cada nodo trabaja item a item</h2>
+    <p>Esta es la idea más importante del módulo: <strong>cuando un nodo recibe varios items, hace su trabajo una vez por cada item</strong>. No tienes que programar ningún bucle.</p>
+    <div class="items-demo" aria-label="Ejemplo: tres items entran en un nodo y salen tres resultados">
+      <div class="col"><h4>Entran 3 items</h4><span class="it">Lucía · Sevilla</span><span class="it">Jorge · Bilbao</span><span class="it">Ana · Valencia</span></div>
+      <div class="mid"><span class="nd-box">Gmail<br><small>Send email</small></span></div>
+      <div class="col"><h4>Se envían 3 emails</h4><span class="it ok">Email a Lucía</span><span class="it ok">Email a Jorge</span><span class="it ok">Email a Ana</span></div>
+    </div>
+    <p>Por eso una misma expresión, como <code>{{ $json.nombre }}</code>, da un resultado distinto para cada item: en la primera vuelta vale «Lucía», en la segunda «Jorge» y en la tercera «Ana».</p>
+    <div class="note warn"><p>Esto también puede jugar en tu contra: si un nodo anterior devuelve 50 items sin que te des cuenta, el nodo de Gmail enviará 50 emails. Antes de conectar un nodo que «hace cosas» (enviar, crear, borrar), mira cuántos items le llegan.</p></div>
+
+    <h2 id="json">JSON en 5 minutos</h2>
+    <p>JSON es el formato de los datos en n8n. Solo tiene seis tipos de valores:</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Tipo</th><th>Ejemplo</th><th>Cómo se lee en una expresión</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Texto</strong> (string)</td><td><code>"nombre": "Lucía"</code></td><td><code>$json.nombre</code></td></tr>
+        <tr><td><strong>Número</strong></td><td><code>"precio": 49.9</code></td><td><code>$json.precio</code></td></tr>
+        <tr><td><strong>Booleano</strong></td><td><code>"vip": true</code></td><td><code>$json.vip</code></td></tr>
+        <tr><td><strong>Nulo</strong></td><td><code>"telefono": null</code></td><td><code>$json.telefono</code></td></tr>
+        <tr><td><strong>Lista</strong> (array)</td><td><code>"compras": [49.9, 19.5]</code></td><td><code>$json.compras[0]</code> (el primero; se cuenta desde 0)</td></tr>
+        <tr><td><strong>Objeto</strong></td><td><code>"direccion": { "ciudad": "Sevilla" }</code></td><td><code>$json.direccion.ciudad</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Para entrar en datos anidados, encadena puntos y corchetes: <code>$json.pedidos[0].productos[1].nombre</code>. Si un nombre tiene espacios, guiones o empieza por un número, usa corchetes con comillas: <code>$json["nombre completo"]</code>.</p>
+
+    <h2 id="expresiones">Qué es una expresión</h2>
+    <p>Una expresión es un trocito de código, muy parecido a JavaScript, que escribes dentro de un parámetro entre <code>{{ }}</code>. n8n lo calcula en el momento de ejecutar, para cada item.</p>
+    <ul class="lines">
+      <li><code>Hola</code><span>Valor fijo: siempre «Hola».</span></li>
+      <li><code>{{ $json.nombre }}</code><span>Expresión: el campo <em>nombre</em> del item que se está procesando.</span></li>
+      <li><code>Hola, {{ $json.nombre }}</code><span>Texto fijo y expresión mezclados: «Hola, Lucía», «Hola, Jorge»…</span></li>
+      <li><code>{{ $json.precio * 2 }}</code><span>También se puede calcular: suma, resta, multiplica, compara…</span></li>
+    </ul>
+    <h3>Cómo se escribe en el editor</h3>
+    <ol class="steps">
+      <li><strong>Activa el modo expresión.</strong> Pasa el ratón sobre el parámetro y elige <em>Expression</em> en el selector <em>Fixed | Expression</em>. También puedes arrastrar un campo desde el panel <em>Input</em>: n8n escribe la expresión por ti.</li>
+      <li><strong>Escribe entre llaves.</strong> Al teclear dentro de <code>{{ }}</code>, el editor te sugiere variables y funciones. Pulsa <kbd>Enter</kbd> o <kbd>Tab</kbd> para aceptar una sugerencia.</li>
+      <li><strong>Mira la vista previa.</strong> Debajo del campo aparece el resultado calculado con los datos de entrada. Si hay un error, lo verás ahí antes de ejecutar nada.</li>
+      <li><strong>Amplía el editor</strong> si la expresión es larga: el icono de expandir del campo abre un editor más grande con la entrada, la expresión y el resultado a la vez.</li>
+    </ol>
+    <div class="note info"><p>La vista previa necesita datos de entrada. Si el nodo anterior no se ha ejecutado nunca, n8n no puede calcularla: ejecuta antes los nodos anteriores (o fija sus datos con <em>Pin data</em>).</p></div>
+
+    <h2 id="variables">Variables que más vas a usar</h2>
+    <p>Dentro de una expresión tienes variables que empiezan por <code>$</code>. Estas son las imprescindibles:</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Variable</th><th>Qué devuelve</th></tr></thead>
+      <tbody>
+        <tr><td><code>$json</code></td><td>Los datos del item actual que llega del nodo anterior. Es la que usarás el 90 % de las veces.</td></tr>
+        <tr><td><code>$('Nombre del nodo').item.json</code></td><td>Los datos del item <strong>relacionado</strong> en un nodo anterior, aunque no esté conectado justo antes.</td></tr>
+        <tr><td><code>$('Nombre del nodo').first().json</code></td><td>Los datos del primer item de ese nodo. Útil para configuración que solo tiene un item.</td></tr>
+        <tr><td><code>$('Nombre del nodo').last()</code> / <code>.all()</code></td><td>El último item / todos los items de ese nodo (una lista).</td></tr>
+        <tr><td><code>$input.all()</code></td><td>Todos los items que entran en el nodo actual.</td></tr>
+        <tr><td><code>$now</code> / <code>$today</code></td><td>La fecha y hora actuales / el día de hoy a las 00:00, en la zona horaria del workflow.</td></tr>
+        <tr><td><code>$workflow.name</code> / <code>$execution.id</code></td><td>El nombre del workflow / el identificador de la ejecución. Útiles en mensajes de aviso o de error.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3>¿<code>.item</code> o <code>.first()</code>?</h3>
+    <p>n8n sigue el rastro de cada item a través del workflow: sabe qué item de un nodo anterior dio lugar al item actual. Eso se llama <strong>item linking</strong> (enlace de items) y es lo que usa <code>.item</code>.</p>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Usa <code>.item</code></h3><p style="margin:0">Cuando el nodo anterior tiene varios items y quieres <strong>el que corresponde</strong> al actual. Ejemplo: recuperar el email original del cliente que estás procesando.</p></div>
+      <div class="card"><h3 style="margin-top:0">Usa <code>.first()</code></h3><p style="margin:0">Cuando el nodo anterior solo tiene <strong>un item</strong> que vale para todos (una configuración, un token, un total), o cuando n8n no puede averiguar la relación y te muestra un error de item linking.</p></div>
+    </div>
+    <div class="note warn"><p>Las expresiones se refieren a los nodos <strong>por su nombre</strong>. Si renombras un nodo, n8n actualiza las expresiones que lo usan, pero si escribes un nombre a mano, tiene que coincidir exactamente (mayúsculas y tildes incluidas). Verás en foros la sintaxis antigua <code>$node["Nodo"].json</code>: está obsoleta, usa <code>$('Nodo')</code>.</p></div>
+
+    <h2 id="funciones">Funciones para transformar datos</h2>
+    <p>Puedes aplicar funciones a cualquier valor con un punto, y encadenarlas: <code>{{ $json.email.trim().toLowerCase() }}</code>. Además de las de JavaScript, n8n añade muchas propias. Estas son las más útiles al empezar:</p>
+    <div class="tabs">
+      <div role="tablist" aria-label="Funciones por tipo de dato">
+        <button role="tab" id="t-txt" aria-controls="p-txt" type="button">Texto</button>
+        <button role="tab" id="t-num" aria-controls="p-num" type="button">Números</button>
+        <button role="tab" id="t-list" aria-controls="p-list" type="button">Listas</button>
+        <button role="tab" id="t-date" aria-controls="p-date" type="button">Fechas</button>
+        <button role="tab" id="t-cond" aria-controls="p-cond" type="button">Condiciones</button>
+      </div>
+      <div role="tabpanel" id="p-txt" aria-labelledby="t-txt">
+        <ul class="lines">
+          <li><code>.toUpperCase()</code> / <code>.toLowerCase()</code><span>Todo en mayúsculas / minúsculas.</span></li>
+          <li><code>.toTitleCase()</code><span>Primera letra de cada palabra en mayúscula: «lucía martín» → «Lucía Martín».</span></li>
+          <li><code>.trim()</code><span>Quita los espacios del principio y del final.</span></li>
+          <li><code>.split(' ')</code><span>Corta un texto y devuelve una lista: <code>"lucía martín".split(' ')[0]</code> → «lucía».</span></li>
+          <li><code>.replace('a', 'b')</code><span>Sustituye un texto por otro (la primera vez que aparece; <code>.replaceAll()</code> para todas).</span></li>
+          <li><code>.isEmail()</code> / <code>.extractEmail()</code><span>Comprueba si es un email / saca el email de un texto más largo.</span></li>
+          <li><code>.isEmpty()</code> / <code>.isNotEmpty()</code><span>Comprueba si está vacío.</span></li>
+        </ul>
+      </div>
+      <div role="tabpanel" id="p-num" aria-labelledby="t-num">
+        <ul class="lines">
+          <li><code>.round(2)</code><span>Redondea a 2 decimales: <code>83.974</code> → <code>83.97</code>.</span></li>
+          <li><code>.floor()</code> / <code>.ceil()</code><span>Redondea hacia abajo / hacia arriba.</span></li>
+          <li><code>.toLocaleString('es-ES')</code><span>Formato español para mostrar: <code>1234.5</code> → «1.234,5».</span></li>
+          <li><code>.isEven()</code> / <code>.isOdd()</code><span>¿Es par? / ¿Es impar?</span></li>
+          <li><code>"12".toNumber()</code><span>Convierte un texto en número para poder calcular.</span></li>
+        </ul>
+      </div>
+      <div role="tabpanel" id="p-list" aria-labelledby="t-list">
+        <ul class="lines">
+          <li><code>.length</code><span>Cuántos elementos tiene (sin paréntesis).</span></li>
+          <li><code>.first()</code> / <code>.last()</code><span>El primer / último elemento.</span></li>
+          <li><code>.sum()</code> / <code>.average()</code><span>Suma / media de una lista de números.</span></li>
+          <li><code>.min()</code> / <code>.max()</code><span>El valor más pequeño / más grande.</span></li>
+          <li><code>.join(', ')</code><span>Une los elementos en un texto: <code>["a","b"]</code> → «a, b».</span></li>
+          <li><code>.unique()</code><span>Quita los repetidos.</span></li>
+        </ul>
+      </div>
+      <div role="tabpanel" id="p-date" aria-labelledby="t-date">
+        <p>Las fechas de n8n usan la librería <strong>Luxon</strong> y respetan la zona horaria del workflow.</p>
+        <ul class="lines">
+          <li><code>$now.toFormat('dd/MM/yyyy')</code><span>Fecha de hoy al estilo español: «26/11/2026».</span></li>
+          <li><code>$now.toFormat('HH:mm')</code><span>La hora: «12:37».</span></li>
+          <li><code>$today.minus({ days: 7 })</code><span>Hace una semana (a las 00:00).</span></li>
+          <li><code>$today.plus({ months: 1 })</code><span>Dentro de un mes.</span></li>
+          <li><code>$json.fecha.toDateTime()</code><span>Convierte un texto de fecha (por ejemplo <code>"2026-03-14"</code>) en una fecha con la que operar.</span></li>
+        </ul>
+      </div>
+      <div role="tabpanel" id="p-cond" aria-labelledby="t-cond">
+        <ul class="lines">
+          <li><code>{{ $json.vip ? 'VIP' : 'Estándar' }}</code><span>Operador ternario: <em>condición ? si es verdad : si es falso</em>.</span></li>
+          <li><code>{{ $json.telefono ?? 'Sin teléfono' }}</code><span>Valor por defecto si el campo no existe o es nulo.</span></li>
+          <li><code>{{ $json.direccion?.ciudad }}</code><span>El <code>?.</code> evita un error si <em>direccion</em> no existe: devuelve vacío en lugar de fallar.</span></li>
+          <li><code>{{ $json.total > 100 }}</code><span>Comparaciones: devuelven <code>true</code> o <code>false</code>.</span></li>
+        </ul>
+        <p>Para decisiones que cambian el camino del workflow, usarás los nodos <em>IF</em> y <em>Switch</em> (módulo 7).</p>
+      </div>
+    </div>
+    <div class="note tip"><p>No hace falta memorizarlas: al escribir un punto detrás de un valor, el editor te muestra las funciones disponibles para ese tipo de dato, con una breve explicación.</p></div>
+
+    <h2 id="laboratorio">Laboratorio de expresiones</h2>
+    <p>Aquí tienes los datos del ejercicio práctico: tres clientes que llegan del nodo <strong>Separar clientes</strong> y un nodo <strong>Configuración</strong> con el nombre de la tienda y el IVA. Escribe una expresión o pulsa un ejemplo, y mira el resultado para cada item.</p>
+    <div class="lab" id="lab">
+      <div class="lab-in">
+        <h4>Input · <span id="lab-titulo">item 1 de 3</span></h4>
+        <div class="lab-items" role="group" aria-label="Elegir item">
+          <button type="button" data-item="0" aria-pressed="true">Item 1</button><button type="button" data-item="1" aria-pressed="false">Item 2</button><button type="button" data-item="2" aria-pressed="false">Item 3</button>
+        </div>
+        <pre id="lab-json"></pre>
+        <details class="lab-otros"><summary>Otros nodos disponibles</summary><pre id="lab-nodos"></pre></details>
+      </div>
+      <div class="lab-ex">
+        <label for="lab-expr"><h4>Valor del parámetro (modo Expression)</h4></label>
+        <textarea id="lab-expr" rows="3" spellcheck="false" autocomplete="off"></textarea>
+        <h4>Resultado <span class="tipo" id="lab-tipo"></span></h4>
+        <div class="lab-res" id="lab-res" aria-live="polite"></div>
+        <h4>Para cada item</h4>
+        <ol class="lab-todos" id="lab-todos"></ol>
+      </div>
+    </div>
+    <p class="lab-chips-t">Ejemplos para probar:</p>
+    <div class="lab-chips" id="lab-chips"></div>
+    <div class="note info"><p>El laboratorio imita las funciones más habituales de n8n (las de las pestañas de arriba). n8n tiene muchas más; si algo no funciona aquí, pruébalo en tu instalación.</p></div>
+
+    <h2 id="practica">Práctica: mensajes personalizados para clientes</h2>
+    <p>Vas a construir un workflow que recibe una lista de clientes, la separa en un item por cliente y prepara un mensaje personalizado para cada uno.</p>
+    <div class="flow" data-flujo="clientes"></div>
+    <ol class="steps">
+      <li><strong>Crea el workflow</strong> «Mensajes a clientes» y añade un <strong>Trigger manually</strong> llamado <strong>Al pulsar Ejecutar</strong>.</li>
+      <li><strong>Configuración.</strong> Añade un <em>Edit Fields</em> llamado <strong>Configuración</strong> con dos campos: <code>tienda</code> (String) = <code>Tienda Ejemplo</code> e <code>iva</code> (Number) = <code>0.21</code>.</li>
+      <li><strong>Lista de clientes.</strong> Añade otro <em>Edit Fields</em> llamado <strong>Lista de clientes</strong>, cambia <em>Mode</em> a <strong>JSON</strong> y pega en <em>JSON Output</em> el código de abajo. Ejecuta el paso: verás <strong>1 item</strong> con un campo <code>clientes</code> que contiene una lista de tres.
+        <div class="code"><div class="h">JSON Output de «Lista de clientes»<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "clientes": [
+    { "nombre": "lucía martín", "email": "LUCIA@Ejemplo.com", "direccion": { "ciudad": "Sevilla", "cp": "41001" }, "compras": [49.9, 19.5], "vip": true },
+    { "nombre": "jorge pérez", "email": "  jorge.perez@ejemplo.com", "direccion": { "ciudad": "Bilbao", "cp": "48001" }, "compras": [120], "vip": false },
+    { "nombre": "ana ruiz", "email": "ana@ejemplo.com ", "direccion": { "ciudad": "Valencia", "cp": "46001" }, "compras": [15, 30, 22.4], "vip": false, "telefono": "600 000 000" }
+  ]
+}</code></pre></div>
+      </li>
+      <li><strong>Separa la lista en items.</strong> Añade el nodo <strong>Split Out</strong> (búscalo como «split out»), llámalo <strong>Separar clientes</strong> y escribe <code>clientes</code> en <em>Fields To Split Out</em>. Ejecuta el paso: ahora salen <strong>3 items</strong>, uno por cliente, con sus campos <code>nombre</code>, <code>email</code>, <code>direccion</code>… Compruébalo en la vista <em>Table</em>.</li>
+      <li><strong>Prepara los mensajes.</strong> Añade un <em>Edit Fields</em> llamado <strong>Preparar mensajes</strong> y crea estos campos, todos en modo <em>Expression</em>:
+        <div class="scroll"><table class="stack">
+          <thead><tr><th>Nombre</th><th>Tipo</th><th>Valor</th></tr></thead>
+          <tbody>
+            <tr><td><code>nombre</code></td><td>String</td><td><code>{{ $json.nombre.toTitleCase() }}</code></td></tr>
+            <tr><td><code>email</code></td><td>String</td><td><code>{{ $json.email.trim().toLowerCase() }}</code></td></tr>
+            <tr><td><code>ciudad</code></td><td>String</td><td><code>{{ $json.direccion.ciudad }}</code></td></tr>
+            <tr><td><code>num_compras</code></td><td>Number</td><td><code>{{ $json.compras.length }}</code></td></tr>
+            <tr><td><code>total_con_iva</code></td><td>Number</td><td><code>{{ ($json.compras.sum() * (1 + $('Configuración').first().json.iva)).round(2) }}</code></td></tr>
+            <tr><td><code>tipo</code></td><td>String</td><td><code>{{ $json.vip ? 'VIP' : 'Estándar' }}</code></td></tr>
+            <tr><td><code>telefono</code></td><td>String</td><td><code>{{ $json.telefono ?? 'Sin teléfono' }}</code></td></tr>
+            <tr><td><code>saludo</code></td><td>String</td><td><code>Hola {{ $json.nombre.split(' ')[0].toTitleCase() }}, gracias por comprar en {{ $('Configuración').first().json.tienda }}.</code></td></tr>
+            <tr><td><code>fecha</code></td><td>String</td><td><code>{{ $now.toFormat('dd/MM/yyyy') }}</code></td></tr>
+          </tbody>
+        </table></div>
+      </li>
+      <li><strong>Revisa la vista previa de cada campo.</strong> En el panel <em>Input</em>, cambia de item con las flechas o el selector de item y comprueba que la vista previa cambia: la expresión es la misma, pero el resultado depende del item.</li>
+      <li><strong>Ejecuta el workflow</strong> y abre «Preparar mensajes» en vista <em>Table</em>. Debes ver 3 filas. Comprueba que Lucía tiene <code>total_con_iva</code> = 83.97 y que solo Ana tiene teléfono.</li>
+      <li><strong>Experimenta con <code>.item</code>.</strong> Añade un campo <code>email_original</code> con <code>{{ $('Separar clientes').item.json.email }}</code>. Funciona porque n8n sabe qué cliente de «Separar clientes» corresponde a cada item. Prueba ahora <code>{{ $('Separar clientes').first().json.email }}</code>: los tres items mostrarán el email de Lucía.</li>
+    </ol>
+
+    <h2 id="solucion">Solución</h2>
+    <p>Copia y pega este workflow en un lienzo vacío para comparar con el tuyo.</p>
+    <div class="code"><div class="h">Workflow «Mensajes a clientes» (JSON para pegar en el lienzo)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f01",
+      "name": "Al pulsar Ejecutar"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f02", "name": "tienda", "value": "Tienda Ejemplo", "type": "string" },
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f03", "name": "iva", "value": 0.21, "type": "number" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f04",
+      "name": "Configuración"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"clientes\": [\n    { \"nombre\": \"lucía martín\", \"email\": \"LUCIA@Ejemplo.com\", \"direccion\": { \"ciudad\": \"Sevilla\", \"cp\": \"41001\" }, \"compras\": [49.9, 19.5], \"vip\": true },\n    { \"nombre\": \"jorge pérez\", \"email\": \"  jorge.perez@ejemplo.com\", \"direccion\": { \"ciudad\": \"Bilbao\", \"cp\": \"48001\" }, \"compras\": [120], \"vip\": false },\n    { \"nombre\": \"ana ruiz\", \"email\": \"ana@ejemplo.com \", \"direccion\": { \"ciudad\": \"Valencia\", \"cp\": \"46001\" }, \"compras\": [15, 30, 22.4], \"vip\": false, \"telefono\": \"600 000 000\" }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [440, 0],
+      "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f05",
+      "name": "Lista de clientes"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "clientes",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [660, 0],
+      "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f06",
+      "name": "Separar clientes"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f07", "name": "nombre", "value": "={{ $json.nombre.toTitleCase() }}", "type": "string" },
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f08", "name": "email", "value": "={{ $json.email.trim().toLowerCase() }}", "type": "string" },
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f09", "name": "ciudad", "value": "={{ $json.direccion.ciudad }}", "type": "string" },
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f10", "name": "num_compras", "value": "={{ $json.compras.length }}", "type": "number" },
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f11", "name": "total_con_iva", "value": "={{ ($json.compras.sum() * (1 + $('Configuración').first().json.iva)).round(2) }}", "type": "number" },
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f12", "name": "tipo", "value": "={{ $json.vip ? 'VIP' : 'Estándar' }}", "type": "string" },
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f13", "name": "telefono", "value": "={{ $json.telefono ?? 'Sin teléfono' }}", "type": "string" },
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f14", "name": "saludo", "value": "=Hola {{ $json.nombre.split(' ')[0].toTitleCase() }}, gracias por comprar en {{ $('Configuración').first().json.tienda }}.", "type": "string" },
+            { "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f15", "name": "fecha", "value": "={{ $now.toFormat('dd/MM/yyyy') }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [880, 0],
+      "id": "b5d3f2a1-5c7e-4d9f-8a21-3b4c5d6e7f16",
+      "name": "Preparar mensajes"
+    }
+  ],
+  "connections": {
+    "Al pulsar Ejecutar": { "main": [[{ "node": "Configuración", "type": "main", "index": 0 }]] },
+    "Configuración": { "main": [[{ "node": "Lista de clientes", "type": "main", "index": 0 }]] },
+    "Lista de clientes": { "main": [[{ "node": "Separar clientes", "type": "main", "index": 0 }]] },
+    "Separar clientes": { "main": [[{ "node": "Preparar mensajes", "type": "main", "index": 0 }]] }
+  }
+}</code></pre></div>
+    <p>Fíjate en que «Lista de clientes» <strong>no</strong> conserva los campos de «Configuración» (no tiene activado <em>Include Other Input Fields</em>). Aun así, «Preparar mensajes» puede leer el IVA porque <code>$('Configuración')</code> accede a cualquier nodo anterior por su nombre.</p>
+
+    <h2 id="problemas">Problemas frecuentes</h2>
+    <div class="faq">
+      <details><summary>La vista previa sale vacía o como <code>undefined</code></summary><div><p>El campo no existe con ese nombre en el item. Revisa mayúsculas, tildes y el nivel de anidamiento (¿es <code>$json.ciudad</code> o <code>$json.direccion.ciudad</code>?). Lo más seguro es arrastrar el campo desde el panel <em>Input</em> en lugar de escribirlo.</p></div></details>
+      <details><summary>«Cannot read properties of undefined (reading '…')»</summary><div><p>Intentas aplicar una función o entrar en un campo de algo que no existe, por ejemplo <code>$json.telefono.trim()</code> en un cliente sin teléfono. Usa <code>?.</code> y <code>??</code>: <code>{{ $json.telefono?.trim() ?? 'Sin teléfono' }}</code>.</p></div></details>
+      <details><summary>Error de item linking: «Info for expression missing from previous node»</summary><div><p>n8n no puede averiguar qué item del nodo anterior corresponde al actual (suele pasar después de nodos <em>Code</em> o de algunos nodos de la comunidad). Si el nodo referenciado tiene un solo item, cambia <code>.item</code> por <code>.first()</code>. Si tiene varios, usa <code>.all()[índice]</code> o revisa el diseño del workflow.</p></div></details>
+      <details><summary>La vista previa dice que no hay datos o que el nodo no se ha ejecutado</summary><div><p>Las expresiones necesitan datos de ejemplo para la vista previa. Ejecuta los nodos anteriores (<em>Execute previous nodes</em>) o el workflow completo. El cálculo real siempre se hace al ejecutar.</p></div></details>
+      <details><summary>Un número sale como texto y no puedo sumarlo</summary><div><p>Viene entre comillas en el JSON (<code>"12"</code>). Conviértelo con <code>.toNumber()</code> o pon el campo de tipo <em>Number</em> en <em>Edit Fields</em>, que lo convierte al guardar.</p></div></details>
+      <details><summary>Copié una expresión de un foro y usa <code>$node["…"]</code> o <code>$items()</code></summary><div><p>Es sintaxis antigua. Tradúcela: <code>$node["Nodo"].json</code> → <code>$('Nodo').item.json</code>, y <code>$items("Nodo")</code> → <code>$('Nodo').all()</code>.</p></div></details>
+    </div>
+
+    <h2 id="retos">Retos para practicar</h2>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Reto 1 · Iniciales</h3><p style="margin:0">Crea un campo <code>iniciales</code> que devuelva «LM», «JP» y «AR». Pista: <code>split</code>, <code>map</code> y <code>join</code>.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 2 · Compra media</h3><p style="margin:0">Añade <code>compra_media</code> con la media de las compras de cada cliente, redondeada a 2 decimales.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 3 · Fecha límite</h3><p style="margin:0">Crea <code>oferta_hasta</code> con la fecha de dentro de 15 días en formato <code>dd/MM/yyyy</code>.</p></div>
+    </div>
+    <details class="term"><summary><i>?</i>Ver las soluciones</summary>
+      <div class="code"><div class="h">Soluciones de los retos<button class="copy" type="button">Copiar</button></div><pre><code><span class="c">// Reto 1</span>
+{{ $json.nombre.split(' ').map(p =&gt; p[0].toUpperCase()).join('') }}
+<span class="c">// Reto 2</span>
+{{ $json.compras.average().round(2) }}
+<span class="c">// Reto 3</span>
+{{ $today.plus({ days: 15 }).toFormat('dd/MM/yyyy') }}</code></pre></div>
+    </details>
+
+    <h3>Comprueba tu práctica</h3>
+    <ul class="check" id="checklist" data-ok="¡Muy bien! Ya sabes leer y transformar datos con expresiones.">
+      <li><label><input type="checkbox"><span>Entiendo que los datos son una lista de items y que cada nodo trabaja item a item</span></label></li>
+      <li><label><input type="checkbox"><span>Sé leer campos anidados y listas: <code>$json.direccion.ciudad</code>, <code>$json.compras[0]</code></span></label></li>
+      <li><label><input type="checkbox"><span>He convertido 1 item con una lista en 3 items con Split Out</span></label></li>
+      <li><label><input type="checkbox"><span>He usado funciones de texto, números y listas en expresiones</span></label></li>
+      <li><label><input type="checkbox"><span>He leído datos de un nodo anterior con <code>$('Configuración').first()</code></span></label></li>
+      <li><label><input type="checkbox"><span>He visto la diferencia entre <code>.item</code> y <code>.first()</code></span></label></li>
+      <li><label><input type="checkbox"><span>He usado <code>??</code> para dar un valor por defecto</span></label></li>
+    </ul>
+    <p class="check-msg" id="check-msg" aria-live="polite"></p>
+
+    <h2 id="test">Comprueba lo que has aprendido</h2>
+    <div id="quiz" class="quiz"></div>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="04-primer-workflow.html">← Módulo 4: Primer workflow</a>
+      <a class="btn ghost" href="../index.html">Volver al índice</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Basado en la <a href="https://docs.n8n.io/">documentación oficial</a> de n8n 2.x · Revisado en noviembre de 2026</footer>
+
+<script>
+window.FLUJOS = {
+  clientes: [
+    { tipo: 'trig', ico: '▶', t: 'Al pulsar Ejecutar', d: 'Manual Trigger' },
+    { ico: '✎', t: 'Configuración', d: 'Tienda e IVA · 1 item' },
+    { ico: '✎', t: 'Lista de clientes', d: 'JSON con una lista · 1 item' },
+    { ico: '⇶', t: 'Separar clientes', d: 'Split Out · 3 items' },
+    { ico: '✎', t: 'Preparar mensajes', d: 'Expresiones · 3 items' }
+  ]
+};
+window.QUIZ = [
+  { p: 'Un nodo de Gmail recibe 4 items. ¿Cuántos emails envía?', o: ['1, con los 4 items juntos', '4, uno por item', 'Ninguno: hace falta un bucle'], c: 1, e: 'Los nodos trabajan item a item: la operación se repite para cada item que llega.' },
+  { p: '¿Cómo lees la ciudad en el item { "direccion": { "ciudad": "Sevilla" } }?', o: ['{{ $json.ciudad }}', '{{ $json.direccion.ciudad }}', '{{ $json["direccion ciudad"] }}'], c: 1, e: 'Para entrar en un objeto anidado se encadenan los nombres con puntos.' },
+  { p: '¿Qué devuelve {{ $json.compras[0] }} si compras es [49.9, 19.5]?', o: ['49.9', '19.5', 'La lista completa'], c: 0, e: 'Las listas se cuentan desde 0: [0] es el primer elemento.' },
+  { p: 'El nodo «Configuración» tiene un solo item con el IVA. ¿Qué expresión es la más adecuada para leerlo desde un nodo posterior?', o: ['{{ $json.iva }}', "{{ $('Configuración').first().json.iva }}", "{{ $node.Configuración.iva }}"], c: 1, e: '$json solo ve el nodo inmediatamente anterior. Con $(\'Nodo\').first() lees cualquier nodo anterior; $node[...] es sintaxis obsoleta.' },
+  { p: '¿Qué hace {{ $json.telefono ?? "Sin teléfono" }}?', o: ['Da error si no hay teléfono', 'Devuelve el teléfono o, si no existe o es nulo, «Sin teléfono»', 'Comprueba si el teléfono es válido'], c: 1, e: 'El operador ?? da un valor por defecto cuando el de la izquierda es null o undefined.' },
+  { p: '¿Qué diferencia hay entre $(\'Nodo\').item y $(\'Nodo\').first()?', o: ['Ninguna', '.item devuelve el item relacionado con el actual; .first() siempre el primero', '.first() es más moderno y .item está obsoleto'], c: 1, e: '.item usa el enlace de items (item linking) para encontrar el item que corresponde; .first() devuelve siempre el primero.' }
+];
+</script>
+<script src="../js/main.js"></script>
+<script>
+{
+  /* ===== Laboratorio de expresiones ===== */
+  const CLIENTES = [
+    { nombre: 'lucía martín', email: 'LUCIA@Ejemplo.com', direccion: { ciudad: 'Sevilla', cp: '41001' }, compras: [49.9, 19.5], vip: true },
+    { nombre: 'jorge pérez', email: '  jorge.perez@ejemplo.com', direccion: { ciudad: 'Bilbao', cp: '48001' }, compras: [120], vip: false },
+    { nombre: 'ana ruiz', email: 'ana@ejemplo.com ', direccion: { ciudad: 'Valencia', cp: '46001' }, compras: [15, 30, 22.4], vip: false, telefono: '600 000 000' }
+  ];
+  const NODOS = {
+    'Al pulsar Ejecutar': [{}],
+    'Configuración': [{ tienda: 'Tienda Ejemplo', iva: 0.21 }],
+    'Lista de clientes': [{ clientes: CLIENTES }],
+    'Separar clientes': CLIENTES
+  };
+  const EJEMPLOS = [
+    '{{ $json.nombre }}',
+    '{{ $json.nombre.toTitleCase() }}',
+    '{{ $json.direccion.ciudad }}',
+    '{{ $json.compras[0] }}',
+    '{{ $json.compras.length }}',
+    '{{ $json.compras.sum() }}',
+    '{{ $json.email.trim().toLowerCase() }}',
+    "{{ $json.vip ? 'Cliente VIP' : 'Cliente estándar' }}",
+    "{{ $json.telefono ?? 'Sin teléfono' }}",
+    "{{ ($json.compras.sum() * (1 + $('Configuración').first().json.iva)).round(2) }}",
+    "Hola {{ $json.nombre.split(' ')[0].toTitleCase() }}, gracias por comprar en {{ $('Configuración').first().json.tienda }}.",
+    "{{ $('Separar clientes').first().json.email }}",
+    "{{ $now.toFormat('dd/MM/yyyy') }}",
+    '{{ $json.telefono.trim() }}'
+  ];
+
+  /* Funciones al estilo de n8n (solo si no existen) */
+  const def = (proto, nombre, fn) => { if (!(nombre in proto)) Object.defineProperty(proto, nombre, { value: fn, configurable: true, writable: true }); };
+  def(String.prototype, 'toTitleCase', function () { return this.toLowerCase().replace(/(^|[\s\-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()); });
+  def(String.prototype, 'toSentenceCase', function () { const s = this.toLowerCase(); return s.charAt(0).toUpperCase() + s.slice(1); });
+  def(String.prototype, 'isEmail', function () { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.trim()); });
+  def(String.prototype, 'extractEmail', function () { const m = this.match(/[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+/); return m ? m[0] : undefined; });
+  def(String.prototype, 'extractDomain', function () { const m = this.match(/@([^\s@>]+)/) || this.match(/^(?:https?:\/\/)?([^/\s]+)/); return m ? m[1] : undefined; });
+  def(String.prototype, 'isEmpty', function () { return this.length === 0; });
+  def(String.prototype, 'isNotEmpty', function () { return this.length > 0; });
+  def(String.prototype, 'toNumber', function () { return Number(this.replace(',', '.')); });
+  def(Number.prototype, 'round', function (d = 0) { const f = 10 ** d; return Math.round((this + Number.EPSILON) * f) / f; });
+  def(Number.prototype, 'floor', function () { return Math.floor(this); });
+  def(Number.prototype, 'ceil', function () { return Math.ceil(this); });
+  def(Number.prototype, 'isEven', function () { return this % 2 === 0; });
+  def(Number.prototype, 'isOdd', function () { return Math.abs(this % 2) === 1; });
+  def(Array.prototype, 'first', function () { return this[0]; });
+  def(Array.prototype, 'last', function () { return this[this.length - 1]; });
+  def(Array.prototype, 'sum', function () { return Math.round(this.reduce((a, b) => a + Number(b), 0) * 1e10) / 1e10; });
+  def(Array.prototype, 'average', function () { return this.length ? this.sum() / this.length : 0; });
+  def(Array.prototype, 'min', function () { return Math.min(...this); });
+  def(Array.prototype, 'max', function () { return Math.max(...this); });
+  def(Array.prototype, 'unique', function () { return [...new Set(this)]; });
+  def(Array.prototype, 'isEmpty', function () { return this.length === 0; });
+  def(Array.prototype, 'isNotEmpty', function () { return this.length > 0; });
+
+  /* Fechas mínimas al estilo Luxon */
+  const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  class Fecha {
+    constructor(d) { this.d = new Date(d); }
+    plus(o = {}) { const d = new Date(this.d); if (o.years) d.setFullYear(d.getFullYear() + o.years); if (o.months) d.setMonth(d.getMonth() + o.months); if (o.weeks) d.setDate(d.getDate() + 7 * o.weeks); if (o.days) d.setDate(d.getDate() + o.days); if (o.hours) d.setHours(d.getHours() + o.hours); if (o.minutes) d.setMinutes(d.getMinutes() + o.minutes); return new Fecha(d); }
+    minus(o = {}) { const n = {}; Object.keys(o).forEach(k => { n[k] = -o[k]; }); return this.plus(n); }
+    toFormat(f) {
+      const d = this.d, p = n => String(n).padStart(2, '0');
+      const t = { yyyy: d.getFullYear(), yy: String(d.getFullYear()).slice(2), LLLL: MESES[d.getMonth()], MM: p(d.getMonth() + 1), M: d.getMonth() + 1, dd: p(d.getDate()), d: d.getDate(), HH: p(d.getHours()), H: d.getHours(), mm: p(d.getMinutes()), ss: p(d.getSeconds()) };
+      return f.replace(/yyyy|yy|LLLL|MM|M|dd|d|HH|H|mm|ss/g, k => t[k]);
+    }
+    toISO() { const o = -this.d.getTimezoneOffset(), s = o >= 0 ? '+' : '-', a = Math.abs(o); return this.toFormat("yyyy-MM-dd'T'HH:mm:ss").replace("'T'", 'T') + '.000' + s + String(Math.floor(a / 60)).padStart(2, '0') + ':' + String(a % 60).padStart(2, '0'); }
+    toLocaleString() { return this.d.toLocaleDateString('es-ES'); }
+    get year() { return this.d.getFullYear(); } get month() { return this.d.getMonth() + 1; } get day() { return this.d.getDate(); }
+    toString() { return this.toISO(); } toJSON() { return this.toISO(); }
+  }
+  def(String.prototype, 'toDateTime', function () { return new Fecha(this.length === 10 ? this + 'T00:00:00' : this); });
+
+  /* Evaluación */
+  const item = j => ({ json: j });
+  const crear$ = idx => nombre => {
+    if (!(nombre in NODOS)) throw new Error(`No existe ningún nodo llamado «${nombre}». Revisa mayúsculas y tildes.`);
+    const lista = NODOS[nombre];
+    return { first: () => item(lista[0]), last: () => item(lista[lista.length - 1]), all: () => lista.map(item), get item() { return item(lista[Math.min(idx, lista.length - 1)]); } };
+  };
+  const evaluar = (codigo, idx) => {
+    const ahora = new Fecha(Date.now()), hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const $input = { all: () => CLIENTES.map(item), first: () => item(CLIENTES[0]), last: () => item(CLIENTES[2]), item: item(CLIENTES[idx]) };
+    const f = new Function('$json', '$', '$now', '$today', '$input', '$workflow', '$execution', '"use strict"; return (' + codigo + '\n);');
+    return f(CLIENTES[idx], crear$(idx), ahora, new Fecha(hoy), $input, { name: 'Mensajes a clientes' }, { id: '42' });
+  };
+  const resolver = (txt, idx) => {
+    const re = /\{\{([\s\S]*?)\}\}/g;
+    const partes = [...txt.matchAll(re)];
+    if (!partes.length) return txt;
+    if (partes.length === 1 && partes[0][0] === txt.trim()) return evaluar(partes[0][1], idx);
+    return txt.replace(re, (_, c) => { const r = evaluar(c, idx); return r === undefined ? '' : (r !== null && typeof r === 'object' && !(r instanceof Fecha) ? JSON.stringify(r) : String(r)); });
+  };
+  const tipoDe = v => v === null ? 'null' : v === undefined ? 'undefined' : Array.isArray(v) ? 'Array' : v instanceof Fecha ? 'DateTime' : ({ string: 'String', number: 'Number', boolean: 'Boolean', object: 'Object' }[typeof v] || typeof v);
+  const mostrar = v => v === undefined ? '[undefined]' : v === null ? 'null' : typeof v === 'string' ? v : v instanceof Fecha ? v.toISO() : JSON.stringify(v, null, 2);
+  const traducir = m => m
+    .replace(/Cannot read properties of (undefined|null) \(reading '(.+?)'\)/, "Cannot read properties of $1 (reading '$2'): intentas usar «$2» sobre algo que no existe. Prueba con ?. o ??")
+    .replace(/(\S+) is not a function/, '$1 no es una función disponible para ese tipo de dato')
+    .replace(/Unexpected token.*|Invalid or unexpected token|missing \) .*/, 'Error de sintaxis: revisa paréntesis, comillas y llaves.');
+
+  const lab = document.getElementById('lab');
+  const expr = document.getElementById('lab-expr');
+  const res = document.getElementById('lab-res');
+  const tipo = document.getElementById('lab-tipo');
+  const todos = document.getElementById('lab-todos');
+  const jsonBox = document.getElementById('lab-json');
+  const titulo = document.getElementById('lab-titulo');
+  const botones = [...lab.querySelectorAll('[data-item]')];
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let actual = 0;
+  document.getElementById('lab-nodos').textContent = Object.entries(NODOS).filter(([n]) => n !== 'Separar clientes').map(([n, v]) => `$('${n}')  →  ${JSON.stringify(v)}`).join('\n\n');
+
+  const calcularUno = idx => {
+    try { const v = resolver(expr.value, idx); return { ok: true, v }; }
+    catch (e) { return { ok: false, err: traducir(e.message) }; }
+  };
+  const pintar = () => {
+    jsonBox.textContent = JSON.stringify(CLIENTES[actual], null, 2);
+    titulo.textContent = `item ${actual + 1} de ${CLIENTES.length}`;
+    botones.forEach((b, i) => b.setAttribute('aria-pressed', i === actual));
+    const r = calcularUno(actual);
+    lab.classList.toggle('fail', !r.ok);
+    if (r.ok) {
+      res.textContent = mostrar(r.v);
+      tipo.textContent = tipoDe(r.v);
+      res.classList.toggle('undef', r.v === undefined);
+    } else {
+      res.textContent = 'ERROR: ' + r.err;
+      tipo.textContent = 'Error';
+      res.classList.remove('undef');
+    }
+    todos.innerHTML = CLIENTES.map((c, i) => {
+      const x = calcularUno(i);
+      const txt = x.ok ? mostrar(x.v) : 'ERROR';
+      return `<li class="${i === actual ? 'cur' : ''}${x.ok ? '' : ' bad'}"><span>Item ${i + 1}</span><code>${esc(txt.length > 90 ? txt.slice(0, 90) + '…' : txt)}</code></li>`;
+    }).join('');
+  };
+  botones.forEach((b, i) => b.addEventListener('click', () => { actual = i; pintar(); }));
+  expr.addEventListener('input', pintar);
+  const chips = document.getElementById('lab-chips');
+  chips.innerHTML = EJEMPLOS.map((e, i) => `<button type="button" data-ej="${i}">${esc(e)}</button>`).join('');
+  chips.addEventListener('click', e => {
+    const b = e.target.closest('[data-ej]');
+    if (!b) return;
+    expr.value = EJEMPLOS[+b.dataset.ej];
+    pintar();
+    expr.focus();
+  });
+  expr.value = EJEMPLOS[1];
+  pintar();
+}
+</script>
+</body>
+</html>
