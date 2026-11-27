@@ -11,10 +11,10 @@
     { id: 'm5', t: 'Datos y expresiones', f: 'modulos/05-datos-expresiones.html', d: 'Items, JSON y expresiones' },
     { id: 'm6', t: 'Triggers', f: 'modulos/06-triggers.html', d: 'Schedule, Webhook y formularios' },
     { id: 'm7', t: 'Lógica y bucles', f: 'modulos/07-logica.html', d: 'IF, Switch, Merge y bucles' },
-    { id: 'm8', t: 'Credenciales e integraciones', d: 'Próximamente' },
-    { id: 'm9', t: 'El nodo Code', d: 'Próximamente' },
-    { id: 'm10', t: 'IA en n8n', d: 'Próximamente' },
-    { id: 'm11', t: 'Errores y depuración', d: 'Próximamente' },
+    { id: 'm8', t: 'Credenciales e integraciones', f: 'modulos/08-credenciales.html', d: 'Sheets, Gmail, Telegram y HTTP' },
+    { id: 'm9', t: 'El nodo Code', f: 'modulos/09-nodo-code.html', d: 'JavaScript dentro de n8n' },
+    { id: 'm10', t: 'IA en n8n', f: 'modulos/10-ia.html', d: 'AI Agent, memoria y herramientas' },
+    { id: 'm11', t: 'Errores y depuración', f: 'modulos/11-errores.html', d: 'Reintentos, ramas de error y avisos' },
     { id: 'm12', t: 'Proyecto final', d: 'Próximamente' }
   ];
 

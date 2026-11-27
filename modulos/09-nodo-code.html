@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 9 · El nodo Code en n8n: JavaScript (y Python) dentro de tus workflows</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m9" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 9 · 60 minutos</span>
+    <h1>El nodo Code</h1>
+    <p class="lead">Con los nodos que ya conoces puedes hacer casi todo. Pero a veces necesitas un cálculo con varios pasos, agrupar datos o montar un informe a medida, y encadenar diez nodos se vuelve un lío. Para eso está el nodo <strong>Code</strong>: unas líneas de JavaScript (o Python) dentro del workflow, con acceso a los items y a los datos de los demás nodos.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#cuando">¿Cuándo?</a><a href="#modos">Modos</a><a href="#devolver">Qué devolver</a><a href="#variables">Variables</a><a href="#js">JavaScript útil</a><a href="#laboratorio">Laboratorio</a><a href="#depurar">Depurar</a><a href="#limites">Límites</a><a href="#python">Python</a><a href="#practica">Práctica</a><a href="#solucion">Solución</a><a href="#problemas">Problemas</a><a href="#test">Test</a>
+    </nav>
+
+    <div class="note info"><p>Basado en la documentación y el código de <strong>n8n 2.x</strong> (estable 2.49.8 a finales de noviembre de 2026): nodo <em>Code</em> versión 2. En n8n 2.x el código se ejecuta en un <strong>task runner</strong>, un proceso separado de n8n. No necesitas saber programar mucho: este módulo explica todo lo que usa.</p></div>
+
+    <h2 id="cuando">¿Cuándo usar el nodo Code?</h2>
+    <p>La regla de oro: <strong>primero busca un nodo que lo haga</strong>. Los nodos nativos se entienden de un vistazo en el lienzo, cualquiera puede cambiarlos y no fallan por una coma. El código es potente, pero es más difícil de leer para otra persona (o para ti dentro de tres meses).</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Quiero…</th><th>Nodo nativo</th><th>¿Code?</th></tr></thead>
+      <tbody>
+        <tr><td>Crear, renombrar o calcular un campo</td><td>Edit Fields con expresiones</td><td>Solo si el cálculo tiene varios pasos</td></tr>
+        <tr><td>Quedarme con algunos items</td><td>Filter</td><td>No</td></tr>
+        <tr><td>Separar una lista en items</td><td>Split Out</td><td>No</td></tr>
+        <tr><td>Juntar items en uno, sumar o contar</td><td>Aggregate, Summarize</td><td>Si necesitas varios resultados a la vez</td></tr>
+        <tr><td>Ordenar, quitar duplicados, limitar</td><td>Sort, Remove Duplicates, Limit</td><td>No</td></tr>
+        <tr><td>Agrupar, cruzar dos listas y montar un informe con varios totales</td><td>Varios nodos encadenados</td><td><strong>Sí</strong>: aquí brilla</td></tr>
+        <tr><td>Llamar a una API</td><td>HTTP Request</td><td>No: el nodo Code no tiene acceso a la red</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note tip"><p>Si con una expresión <code>{{ }}</code> en un Edit Fields te basta, no uses Code. Si la expresión ocupa tres líneas y te cuesta leerla, probablemente sí.</p></div>
+
+    <h2 id="modos">Los dos modos</h2>
+    <p>Lo primero que eliges en el nodo es el <em>Mode</em>. Cambia cuántas veces se ejecuta tu código y qué tienes que devolver.</p>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Run Once for All Items</h3><p>El modo por defecto. Tu código se ejecuta <strong>una sola vez</strong> y recibe todos los items a la vez con <code>$input.all()</code>.</p><p style="margin:0">Devuelves una <strong>lista</strong> de items: tantos como quieras (menos, más o los mismos). Úsalo para resumir, agrupar, ordenar o crear items nuevos.</p></div>
+      <div class="card"><h3 style="margin-top:0">Run Once for Each Item</h3><p>Tu código se ejecuta <strong>una vez por item</strong>. El item actual está en <code>$json</code> (o <code>$input.item</code>).</p><p style="margin:0">Devuelves <strong>un objeto</strong>: el item de salida. Úsalo para transformar cada item por separado, como un Edit Fields con superpoderes.</p></div>
+    </div>
+    <div class="items-demo" aria-label="Comparación: con 6 items, el modo por item ejecuta el código 6 veces; el modo para todos, una vez">
+      <div class="col"><h4>Entran 6 pedidos</h4><span class="it">101</span><span class="it">102</span><span class="it">103</span><span class="it">…</span><span class="it">106</span></div>
+      <div class="mid"><span class="nd-box">Code<br><small>¿qué modo?</small></span></div>
+      <div class="col"><h4>Each Item</h4><span class="it ok">6 ejecuciones → 6 items</span><h4 style="margin-top:8px">All Items</h4><span class="it ok">1 ejecución → lo que devuelvas (1 resumen, 10 líneas…)</span></div>
+    </div>
+
+    <h2 id="devolver">Qué tiene que devolver tu código</h2>
+    <p>Recuerda el módulo 5: cada item es un objeto con una clave <code>json</code> que contiene los datos. El nodo Code tiene que terminar con un <code>return</code> que devuelva items en ese formato.</p>
+    <div class="tabs">
+      <div role="tablist" aria-label="Formato de salida por modo">
+        <button role="tab" id="t-dev-all" aria-controls="p-dev-all" aria-selected="true">All Items</button>
+        <button role="tab" id="t-dev-each" aria-controls="p-dev-each" aria-selected="false">Each Item</button>
+      </div>
+      <div role="tabpanel" id="p-dev-all" aria-labelledby="t-dev-all">
+        <div class="code"><div class="h">Devolver una lista de items<button class="copy" type="button">Copiar</button></div><pre><code><span class="c">// Forma completa: cada item con su clave json</span>
+return [
+  { json: { cliente: 'Ana', total: 34.49 } },
+  { json: { cliente: 'Jorge', total: 71.69 } }
+];
+
+<span class="c">// Forma corta: n8n envuelve cada objeto en { json: … } por ti</span>
+return [
+  { cliente: 'Ana', total: 34.49 },
+  { cliente: 'Jorge', total: 71.69 }
+];</code></pre></div>
+        <p>Si devuelves un único objeto, n8n lo convierte en un item. Si devuelves <code>null</code>, el nodo sale sin items.</p>
+      </div>
+      <div role="tabpanel" id="p-dev-each" aria-labelledby="t-dev-each" hidden>
+        <div class="code"><div class="h">Devolver un solo item<button class="copy" type="button">Copiar</button></div><pre><code><span class="c">// El item actual con un campo nuevo</span>
+return {
+  json: { ...$json, total_con_iva: $json.total * 1.21 }
+};
+
+<span class="c">// También vale sin json:</span>
+return { ...$json, total_con_iva: $json.total * 1.21 };</code></pre></div>
+        <p>En este modo, si tu código <strong>no devuelve nada</strong> (o devuelve <code>null</code>), ese item <strong>desaparece</strong> de la salida sin ningún error. Es útil para filtrar, pero también es el despiste más común: un <code>return</code> olvidado y te quedas sin items.</p>
+      </div>
+    </div>
+    <p>Si el formato no es correcto, n8n para el nodo con un error. Estos son los que verás:</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Error</th><th>Qué ha pasado</th></tr></thead>
+      <tbody>
+        <tr><td><em>Code doesn't return items properly</em></td><td>En <em>All Items</em> no has devuelto nada, o la lista contiene algo que no es un objeto (un número, un texto…).</td></tr>
+        <tr><td><em>A 'json' property isn't an object</em></td><td>La clave <code>json</code> apunta a una lista o a un texto. En <em>Each Item</em> pasa también si devuelves una lista en vez de un objeto.</td></tr>
+        <tr><td><em>Invalid output format</em></td><td>Un item tiene <code>json</code> y además otras claves al lado (<code>{ json: {...}, total: 5 }</code>). Mete todo dentro de <code>json</code>.</td></tr>
+        <tr><td><em>Unknown top-level item key: …</em></td><td>Mezclas items con <code>json</code> y sin él en la misma lista.</td></tr>
+        <tr><td><em>Can't use .all() here</em></td><td>Has usado <code>$input.all()</code>, <code>.first()</code> o <code>.last()</code> en <em>Each Item</em>. Solo existen en <em>All Items</em>.</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h2 id="variables">Variables y métodos de n8n</h2>
+    <p>Dentro del código tienes las mismas variables con <code>$</code> que en las expresiones, pero <strong>sin las llaves</strong> <code>{{ }}</code>: aquí ya estás escribiendo JavaScript. Escribe <code>$</code> en el editor y verás la lista.</p>
+    <ul class="lines">
+      <li><code>$input.all()</code><span>Todos los items de entrada, como lista. Cada uno tiene su <code>.json</code>. Solo en <em>All Items</em>.</span></li>
+      <li><code>$input.first()</code> / <code>.last()</code><span>El primer o el último item de entrada. Solo en <em>All Items</em>.</span></li>
+      <li><code>$json</code> / <code>$input.item</code><span>El item actual (sus datos, o el item completo). Solo en <em>Each Item</em>.</span></li>
+      <li><code>$('Nodo').all()</code><span>Los items de salida de otro nodo anterior. También <code>.first()</code>, <code>.last()</code> y, en <em>Each Item</em>, <code>.item</code> (el item emparejado, como en el módulo 5).</span></li>
+      <li><code>$now</code> / <code>$today</code><span>Fecha y hora actual y el día de hoy, como objetos de Luxon: <code>$now.toFormat('dd/MM/yyyy HH:mm')</code>. También tienes <code>DateTime</code> para crear fechas.</span></li>
+      <li><code>$workflow</code> / <code>$execution</code><span>Datos del workflow (<code>$workflow.name</code>) y de la ejecución (<code>$execution.id</code>, <code>$execution.mode</code>).</span></li>
+      <li><code>$getWorkflowStaticData('global')</code><span>Un objeto que se conserva entre ejecuciones de producción del mismo workflow. Útil para recordar, por ejemplo, el último id procesado. No se guarda en las ejecuciones manuales.</span></li>
+      <li><code>$jmespath(datos, consulta)</code><span>Consultas sobre JSON con la sintaxis JMESPath, por si la conoces.</span></li>
+    </ul>
+    <div class="note info"><p>En código antiguo verás <code>items</code> (en lugar de <code>$input.all()</code>) e <code>item</code> (en lugar de <code>$input.item</code>). Siguen funcionando, pero en código nuevo usa las formas con <code>$</code>.</p></div>
+
+    <h2 id="js">El JavaScript que más vas a usar</h2>
+    <p>No necesitas saber todo JavaScript. Con estas piezas resuelves la mayoría de los casos:</p>
+    <ul class="lines">
+      <li><code>lista.map(x =&gt; …)</code><span>Transforma cada elemento y devuelve una lista nueva del mismo tamaño. <code>$input.all().map(i =&gt; ({ nombre: i.json.nombre }))</code></span></li>
+      <li><code>lista.filter(x =&gt; …)</code><span>Se queda con los elementos que cumplen la condición. <code>pedidos.filter(p =&gt; p.total &gt; 40)</code></span></li>
+      <li><code>lista.reduce((suma, x) =&gt; …, 0)</code><span>Recorre la lista acumulando un resultado: sumas, totales, conteos. <code>lineas.reduce((s, l) =&gt; s + l.unidades, 0)</code></span></li>
+      <li><code>lista.find(x =&gt; …)</code><span>El primer elemento que cumple la condición (o <code>undefined</code>).</span></li>
+      <li><code>lista.sort((a, b) =&gt; b.total - a.total)</code><span>Ordena; así, de mayor a menor. Ojo: modifica la lista original.</span></li>
+      <li><code>lista.flatMap(x =&gt; […])</code><span>Como <code>map</code>, pero cada elemento puede dar varios: perfecto para pasar de pedidos a líneas.</span></li>
+      <li><code>Object.entries(obj)</code><span>Convierte <code>{ Ana: 34, Jorge: 71 }</code> en <code>[['Ana', 34], ['Jorge', 71]]</code> para ordenarlo o recorrerlo.</span></li>
+      <li><code>{ ...obj, nuevo: 1 }</code><span>Copia un objeto y añade o cambia campos.</span></li>
+      <li><code>`Hola ${nombre}`</code><span>Texto con valores dentro (comillas invertidas).</span></li>
+      <li><code>a ?? b</code> y <code>a?.b</code><span>Valor por defecto si <code>a</code> no existe, y acceso seguro a algo que puede faltar (módulo 5).</span></li>
+      <li><code>Math.round(n * 100) / 100</code><span>Redondea a 2 decimales. Imprescindible con precios: <code>0.1 + 0.2</code> da <code>0.30000000000000004</code>.</span></li>
+    </ul>
+
+    <h2 id="laboratorio">Laboratorio del nodo Code</h2>
+    <p>Aquí tienes un nodo Code de verdad, con los 6 pedidos de la práctica como entrada y un nodo «Clientes» al que puedes llamar con <code>$('Clientes')</code>. Elige el modo, escribe tu código y pulsa <strong>Execute step</strong>. Prueba los ejemplos de abajo, incluidos los que fallan a propósito.</p>
+    <div class="codelab" id="codelab">
+      <div class="cl-in">
+        <h4>Input <span class="cl-n" id="cl-nin"></span></h4>
+        <pre id="cl-input"></pre>
+        <details class="lab-otros"><summary>Nodo «Clientes» (para <code>$('Clientes')</code>)</summary><pre id="cl-clientes"></pre></details>
+      </div>
+      <div class="cl-ed">
+        <h4>Code · Parameters</h4>
+        <div class="router-tipo" role="group" aria-label="Mode">
+          <button type="button" data-mode="runOnceForAllItems" aria-pressed="true">Run Once for All Items</button><button type="button" data-mode="runOnceForEachItem" aria-pressed="false">Run Once for Each Item</button>
+        </div>
+        <label for="cl-code" class="cl-lbl">JavaScript</label>
+        <textarea id="cl-code" spellcheck="false" autocomplete="off" autocapitalize="off" rows="14"></textarea>
+        <div class="sim-btns"><button class="btn sm" type="button" id="cl-run">Execute step</button><button class="btn sm ghost" type="button" id="cl-reset">Restablecer</button></div>
+      </div>
+      <div class="cl-out">
+        <h4>Output <span class="hook-st" id="cl-st"></span></h4>
+        <pre id="cl-output" aria-live="polite">Pulsa «Execute step».</pre>
+        <p class="hook-msg" id="cl-msg"></p>
+        <h4>Consola <small>(lo que escribes con <code>console.log</code>)</small></h4>
+        <pre id="cl-console" class="cl-console">—</pre>
+      </div>
+    </div>
+    <p class="lab-chips-t">Ejemplos (cargan el código y el modo):</p>
+    <div class="lab-chips" id="cl-chips"></div>
+    <div class="note info"><p>El laboratorio ejecuta tu código en el navegador y aplica las mismas reglas de validación y los mismos mensajes de error que n8n 2.49. Simplifica algunas cosas: <code>$('Clientes')</code> solo admite <code>.all()</code>, <code>.first()</code> y <code>.last()</code>, <code>$now</code> solo entiende <code>toFormat</code> con <code>dd</code>, <code>MM</code>, <code>yyyy</code>, <code>HH</code> y <code>mm</code>, y si el código tarda más de 3 segundos se detiene (n8n espera hasta 5 minutos).</p></div>
+
+    <h2 id="depurar">Depurar tu código</h2>
+    <ul class="lines">
+      <li><code>console.log()</code><span>Escribe lo que quieras ver: <code>console.log('Pedido', $json.id, $json.lineas)</code>. En n8n la salida aparece en la <strong>consola del navegador</strong>: pulsa <kbd>F12</kbd> (o <kbd>Ctrl</kbd> + <kbd>Mayús</kbd> + <kbd>J</kbd>) y abre la pestaña <em>Console</em> antes de ejecutar el paso.</span></li>
+      <li><code>[line 4, for item 2]</code><span>Cuando el código falla, el mensaje de error dice en qué línea y, en <em>Each Item</em>, con qué item. Debajo aparece el tipo de error, como <em>TypeError</em>.</span></li>
+      <li><code>Pin data</code><span>Fija la salida del nodo anterior (módulo 3) para probar tu código una y otra vez sin volver a ejecutar todo el workflow.</span></li>
+      <li><code>Paso a paso</code><span>Si algo no cuadra, devuelve resultados intermedios (<code>return [{ json: { porCliente } }]</code>) para ver qué hay en cada variable.</span></li>
+    </ul>
+    <p>El error más típico es <em>Cannot read properties of undefined (reading '…')</em>: intentas leer algo dentro de un campo que no existe. Revisa el nombre del campo en el panel <em>Input</em> o usa <code>?.</code> para que no falle.</p>
+
+    <h2 id="limites">Límites del nodo Code</h2>
+    <ul class="lines">
+      <li><code>Sin red</code><span>No puedes hacer llamadas HTTP (<code>fetch</code> no funciona). Pide los datos con un HTTP Request y procésalos después en el Code.</span></li>
+      <li><code>Sin disco</code><span>No puedes leer ni escribir archivos. Para eso están los nodos <em>Read/Write Files from Disk</em>.</span></li>
+      <li><code>Módulos</code><span>Por defecto no puedes usar <code>require</code>. En tu instalación puedes permitir módulos de Node.js con <code>NODE_FUNCTION_ALLOW_BUILTIN</code> (por ejemplo <code>crypto</code>) y paquetes de npm con <code>NODE_FUNCTION_ALLOW_EXTERNAL</code>.</span></li>
+      <li><code>Tiempo</code><span>Si el código tarda demasiado (por defecto, 300 segundos), n8n lo corta con <em>Task execution timed out after 300 seconds</em>. Suele ser un bucle infinito.</span></li>
+      <li><code>Legibilidad</code><span>Pon un nombre claro al nodo y comentarios en el código. Quien abra el workflow solo verá «Code» en el lienzo.</span></li>
+    </ul>
+
+    <h2 id="python">¿Y Python?</h2>
+    <p>En <em>Language</em> puedes elegir <strong>Python</strong> en lugar de JavaScript. En n8n 2.x es Python «nativo», que se ejecuta en un task runner de Python. Funciona igual que en JavaScript, con tres diferencias:</p>
+    <ul>
+      <li>Los items se leen con <code>_items</code> (en <em>All Items</em>) o <code>_item</code> (en <em>Each Item</em>), y los campos con corchetes: <code>_item["json"]["total"]</code>.</li>
+      <li>No tiene los demás ayudantes: ni <code>$('Nodo')</code>, ni <code>$now</code>, ni <code>$input</code>. Solo <code>_items</code>, <code>_item</code> y <code>print()</code> para depurar.</li>
+      <li>Por defecto no permite <code>import</code>, ni siquiera de la biblioteca estándar, salvo que la instalación lo autorice.</li>
+    </ul>
+    <div class="tabs">
+      <div role="tablist" aria-label="El mismo cálculo en dos lenguajes">
+        <button role="tab" id="t-py-js" aria-controls="p-py-js" aria-selected="true">JavaScript</button>
+        <button role="tab" id="t-py-py" aria-controls="p-py-py" aria-selected="false">Python</button>
+      </div>
+      <div role="tabpanel" id="p-py-js" aria-labelledby="t-py-js">
+        <div class="code"><div class="h">Total de un pedido · Each Item<button class="copy" type="button">Copiar</button></div><pre><code>const subtotal = $json.lineas.reduce((s, l) =&gt; s + l.unidades * l.precio, 0);
+
+return {
+  json: { id: $json.id, total: Math.round(subtotal * 1.21 * 100) / 100 }
+};</code></pre></div>
+      </div>
+      <div role="tabpanel" id="p-py-py" aria-labelledby="t-py-py" hidden>
+        <div class="code"><div class="h">Total de un pedido · Each Item<button class="copy" type="button">Copiar</button></div><pre><code>pedido = _item["json"]
+subtotal = sum(l["unidades"] * l["precio"] for l in pedido["lineas"])
+
+return {"json": {"id": pedido["id"], "total": round(subtotal * 1.21, 2)}}</code></pre></div>
+      </div>
+    </div>
+    <div class="note warn"><p>Con la instalación del módulo 2 (solo el contenedor <code>n8nio/n8n</code>), lo más probable es que al ejecutar Python veas <em>Python runner unavailable: Python 3 is missing from this system</em>. Python necesita el modo <strong>externo</strong> de los task runners: un segundo contenedor, <code>n8nio/runners</code>, de la misma versión que n8n. Para aprender, quédate con JavaScript: es el lenguaje con más ayudantes y el que usan casi todos los ejemplos.</p></div>
+    <details class="term"><summary><i>+</i>Cómo activar Python con Docker Compose (opcional)</summary>
+      <p>Añade un servicio para los runners al <code>compose.yml</code> del módulo 2 y estas variables a n8n. Ambos contenedores comparten un secreto (<code>RUNNERS_TOKEN</code>, que defines en el <code>.env</code>) y deben tener <strong>exactamente la misma versión</strong>: fija <code>N8N_VERSION</code> (por ejemplo, <code>2.49.8</code>) en lugar de <code>latest</code>.</p>
+      <div class="code"><div class="h">Fragmento de compose.yml (modo externo)<button class="copy" type="button">Copiar</button></div><pre><code>services:
+  n8n:
+    <span class="c"># … lo que ya tenías …</span>
+    environment:
+      <span class="c"># … variables que ya tenías …</span>
+      - N8N_RUNNERS_MODE=external
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
+      - N8N_RUNNERS_AUTH_TOKEN=${RUNNERS_TOKEN}
+
+  task-runners:
+    image: n8nio/runners:${N8N_VERSION}
+    container_name: n8n-runners
+    restart: unless-stopped
+    environment:
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
+      - N8N_RUNNERS_AUTH_TOKEN=${RUNNERS_TOKEN}
+    depends_on:
+      - n8n</code></pre></div>
+      <p>Después, <code>docker compose up -d</code>. Si algo falla, revisa los registros de los dos contenedores (<code>docker compose logs n8n task-runners</code>) y la página de <a href="https://docs.n8n.io/hosting/configuration/task-runners/">task runners</a> de la documentación, que es la referencia para tu versión.</p>
+    </details>
+
+    <h2 id="practica">Práctica: informe de ventas</h2>
+    <p>Vas a construir un workflow que calcula el total de cada pedido con un Code por item y después monta un informe del día con un Code para todos los items, usando también los datos de otro nodo.</p>
+    <div class="flow" data-flujo="practica"></div>
+    <h3>Parte A · Los datos</h3>
+    <ol class="steps">
+      <li><strong>Crea el workflow</strong> «Informe de ventas» con un <strong>Trigger manually</strong> llamado <strong>Al pulsar Ejecutar</strong>.</li>
+      <li><strong>Pedidos.</strong> Añade un <em>Edit Fields</em> llamado <strong>Pedidos</strong> en modo <em>JSON</em> con este contenido:
+        <div class="code"><div class="h">JSON Output de «Pedidos»<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "pedidos": [
+    { "id": 101, "cliente": "Lucía Martín", "lineas": [ { "producto": "Taza", "unidades": 2, "precio": 9.9 }, { "producto": "Camiseta", "unidades": 1, "precio": 19.5 } ] },
+    { "id": 102, "cliente": "Jorge Pérez", "lineas": [ { "producto": "Sudadera", "unidades": 1, "precio": 39 } ] },
+    { "id": 103, "cliente": "Ana Ruiz", "lineas": [ { "producto": "Pegatinas", "unidades": 5, "precio": 3 }, { "producto": "Libreta", "unidades": 2, "precio": 6.75 } ] },
+    { "id": 104, "cliente": "Lucía Martín", "lineas": [ { "producto": "Camiseta", "unidades": 2, "precio": 19.5 } ] },
+    { "id": 105, "cliente": "Marta Gil", "lineas": [ { "producto": "Taza", "unidades": 1, "precio": 9.9 }, { "producto": "Pegatinas", "unidades": 2, "precio": 3 }, { "producto": "Sudadera", "unidades": 1, "precio": 39 } ] },
+    { "id": 106, "cliente": "Jorge Pérez", "lineas": [ { "producto": "Libreta", "unidades": 3, "precio": 6.75 } ] }
+  ]
+}</code></pre></div>
+      </li>
+      <li><strong>Separa.</strong> Añade un <strong>Split Out</strong> llamado <strong>Separar pedidos</strong> con <em>Fields To Split Out</em> = <code>pedidos</code>. Ejecuta el paso: 6 items, cada uno con su lista de <code>lineas</code>.</li>
+    </ol>
+    <h3>Parte B · Code por item: el total de cada pedido</h3>
+    <ol class="steps">
+      <li><strong>Añade un nodo Code</strong> (búscalo como <em>Code</em> en el panel de nodos) y llámalo <strong>Calcular total</strong>. En <em>Mode</em> elige <strong>Run Once for Each Item</strong>; <em>Language</em>: JavaScript.</li>
+      <li><strong>Borra el código de ejemplo</strong> y escribe (o pega) este:
+        <div class="code"><div class="h">Código de «Calcular total»<button class="copy" type="button">Copiar</button></div><pre><code>// Se ejecuta una vez por pedido: $json es el pedido actual
+const lineas = $json.lineas;
+const subtotal = lineas.reduce((suma, l) =&gt; suma + l.unidades * l.precio, 0);
+const iva = subtotal * 0.21;
+const r2 = n =&gt; Math.round(n * 100) / 100;
+
+return {
+  json: {
+    id: $json.id,
+    cliente: $json.cliente,
+    lineas: lineas.length,
+    unidades: lineas.reduce((suma, l) =&gt; suma + l.unidades, 0),
+    subtotal: r2(subtotal),
+    iva: r2(iva),
+    total: r2(subtotal + iva)
+  }
+};</code></pre></div>
+      </li>
+      <li><strong>Ejecuta el paso.</strong> Salen 6 items. Comprueba el primero: pedido 101, <code>subtotal</code> 39.3, <code>iva</code> 8.25 y <code>total</code> 47.55. El 105 es el más caro: 66.43.</li>
+      <li><strong>Provoca un error.</strong> Cambia la segunda línea por <code>const lineas = $json.lineass;</code> (con dos eses) y ejecuta. Verás <em>Cannot read properties of undefined (reading 'reduce') [line 3, for item 0]</em> y, debajo, <em>TypeError</em>: el campo no existe. Deja el código como estaba.</li>
+    </ol>
+    <h3>Parte C · Code para todos: el informe del día</h3>
+    <ol class="steps">
+      <li><strong>Añade otro Code</strong> detrás de «Calcular total», llámalo <strong>Resumen del día</strong> y deja el modo en <strong>Run Once for All Items</strong>.</li>
+      <li><strong>El código.</strong> Fíjate en que lee los totales de su entrada con <code>$input.all()</code> y las líneas de cada pedido de otro nodo con <code>$('Separar pedidos').all()</code>:
+        <div class="code"><div class="h">Código de «Resumen del día»<button class="copy" type="button">Copiar</button></div><pre><code>// Se ejecuta una sola vez con todos los pedidos
+const r2 = n =&gt; Math.round(n * 100) / 100;
+const euros = n =&gt; n.toFixed(2).replace('.', ',') + ' €';
+const pedidos = $input.all().map(item =&gt; item.json);
+
+// Total de ventas y pedido medio
+const totalVentas = pedidos.reduce((suma, p) =&gt; suma + p.total, 0);
+
+// Importe por cliente y el mejor
+const porCliente = {};
+for (const p of pedidos) {
+  porCliente[p.cliente] = (porCliente[p.cliente] ?? 0) + p.total;
+}
+const [mejorCliente, importeMejor] = Object.entries(porCliente)
+  .sort((a, b) =&gt; b[1] - a[1])[0];
+
+// Unidades por producto, leyendo las líneas de otro nodo
+const unidades = {};
+for (const item of $('Separar pedidos').all()) {
+  for (const l of item.json.lineas) {
+    unidades[l.producto] = (unidades[l.producto] ?? 0) + l.unidades;
+  }
+}
+const ranking = Object.entries(unidades)
+  .sort((a, b) =&gt; b[1] - a[1])
+  .map(([producto, uds]) =&gt; ({ producto, unidades: uds }));
+
+console.log('Clientes:', porCliente);
+
+return [{
+  json: {
+    pedidos: pedidos.length,
+    total_ventas: r2(totalVentas),
+    pedido_medio: r2(totalVentas / pedidos.length),
+    mejor_cliente: mejorCliente,
+    importe_mejor_cliente: r2(importeMejor),
+    ranking_productos: ranking,
+    resumen: `Hoy: ${pedidos.length} pedidos y ${euros(totalVentas)} en ventas. ` +
+      `Mejor cliente: ${mejorCliente} (${euros(importeMejor)}). ` +
+      `Producto estrella: ${ranking[0].producto} (${ranking[0].unidades} uds.).`
+  }
+}];</code></pre></div>
+      </li>
+      <li><strong>Abre la consola del navegador</strong> (<kbd>F12</kbd> → <em>Console</em>) y ejecuta el paso.</li>
+      <li><strong>Comprueba el resultado.</strong> Un solo item con <code>pedidos</code>: 6, <code>total_ventas</code>: 267.35, <code>pedido_medio</code>: 44.56, <code>mejor_cliente</code>: Lucía Martín (94.74) y el ranking con las Pegatinas primero (7 unidades). En la consola verás el importe de cada cliente.</li>
+      <li><strong>El texto.</strong> El campo <code>resumen</code> está listo para enviarlo por Telegram o Gmail con lo que aprendiste en el módulo 8: «Hoy: 6 pedidos y 267,35 € en ventas. Mejor cliente: Lucía Martín (94,74 €). Producto estrella: Pegatinas (7 uds.).»</li>
+    </ol>
+    <div class="note tip"><p>Pruébalo también en el laboratorio: el ejemplo «Total de cada pedido» hace lo mismo que la parte B, pero en modo <em>All Items</em>. Compara los dos códigos: el resultado es igual, cambia cómo recorres los items.</p></div>
+
+    <h2 id="solucion">Solución</h2>
+    <p>Copia y pega este workflow en un lienzo vacío para comparar con el tuyo.</p>
+    <div class="code"><div class="h">Workflow «Informe de ventas» (JSON para pegar en el lienzo)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "f9d2b3c4-5e6f-4a71-8b9c-0d1e2f3a0001",
+      "name": "Al pulsar Ejecutar"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"pedidos\": [\n    { \"id\": 101, \"cliente\": \"Lucía Martín\", \"lineas\": [ { \"producto\": \"Taza\", \"unidades\": 2, \"precio\": 9.9 }, { \"producto\": \"Camiseta\", \"unidades\": 1, \"precio\": 19.5 } ] },\n    { \"id\": 102, \"cliente\": \"Jorge Pérez\", \"lineas\": [ { \"producto\": \"Sudadera\", \"unidades\": 1, \"precio\": 39 } ] },\n    { \"id\": 103, \"cliente\": \"Ana Ruiz\", \"lineas\": [ { \"producto\": \"Pegatinas\", \"unidades\": 5, \"precio\": 3 }, { \"producto\": \"Libreta\", \"unidades\": 2, \"precio\": 6.75 } ] },\n    { \"id\": 104, \"cliente\": \"Lucía Martín\", \"lineas\": [ { \"producto\": \"Camiseta\", \"unidades\": 2, \"precio\": 19.5 } ] },\n    { \"id\": 105, \"cliente\": \"Marta Gil\", \"lineas\": [ { \"producto\": \"Taza\", \"unidades\": 1, \"precio\": 9.9 }, { \"producto\": \"Pegatinas\", \"unidades\": 2, \"precio\": 3 }, { \"producto\": \"Sudadera\", \"unidades\": 1, \"precio\": 39 } ] },\n    { \"id\": 106, \"cliente\": \"Jorge Pérez\", \"lineas\": [ { \"producto\": \"Libreta\", \"unidades\": 3, \"precio\": 6.75 } ] }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "id": "f9d2b3c4-5e6f-4a71-8b9c-0d1e2f3a0002",
+      "name": "Pedidos"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "pedidos",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [440, 0],
+      "id": "f9d2b3c4-5e6f-4a71-8b9c-0d1e2f3a0003",
+      "name": "Separar pedidos"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Se ejecuta una vez por pedido: $json es el pedido actual\nconst lineas = $json.lineas;\nconst subtotal = lineas.reduce((suma, l) =&gt; suma + l.unidades * l.precio, 0);\nconst iva = subtotal * 0.21;\nconst r2 = n =&gt; Math.round(n * 100) / 100;\n\nreturn {\n  json: {\n    id: $json.id,\n    cliente: $json.cliente,\n    lineas: lineas.length,\n    unidades: lineas.reduce((suma, l) =&gt; suma + l.unidades, 0),\n    subtotal: r2(subtotal),\n    iva: r2(iva),\n    total: r2(subtotal + iva)\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0],
+      "id": "f9d2b3c4-5e6f-4a71-8b9c-0d1e2f3a0004",
+      "name": "Calcular total"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Se ejecuta una sola vez con todos los pedidos\nconst r2 = n =&gt; Math.round(n * 100) / 100;\nconst euros = n =&gt; n.toFixed(2).replace('.', ',') + ' €';\nconst pedidos = $input.all().map(item =&gt; item.json);\n\n// Total de ventas y pedido medio\nconst totalVentas = pedidos.reduce((suma, p) =&gt; suma + p.total, 0);\n\n// Importe por cliente y el mejor\nconst porCliente = {};\nfor (const p of pedidos) {\n  porCliente[p.cliente] = (porCliente[p.cliente] ?? 0) + p.total;\n}\nconst [mejorCliente, importeMejor] = Object.entries(porCliente)\n  .sort((a, b) =&gt; b[1] - a[1])[0];\n\n// Unidades por producto, leyendo las líneas de otro nodo\nconst unidades = {};\nfor (const item of $('Separar pedidos').all()) {\n  for (const l of item.json.lineas) {\n    unidades[l.producto] = (unidades[l.producto] ?? 0) + l.unidades;\n  }\n}\nconst ranking = Object.entries(unidades)\n  .sort((a, b) =&gt; b[1] - a[1])\n  .map(([producto, uds]) =&gt; ({ producto, unidades: uds }));\n\nconsole.log('Clientes:', porCliente);\n\nreturn [{\n  json: {\n    pedidos: pedidos.length,\n    total_ventas: r2(totalVentas),\n    pedido_medio: r2(totalVentas / pedidos.length),\n    mejor_cliente: mejorCliente,\n    importe_mejor_cliente: r2(importeMejor),\n    ranking_productos: ranking,\n    resumen: `Hoy: ${pedidos.length} pedidos y ${euros(totalVentas)} en ventas. ` +\n      `Mejor cliente: ${mejorCliente} (${euros(importeMejor)}). ` +\n      `Producto estrella: ${ranking[0].producto} (${ranking[0].unidades} uds.).`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 0],
+      "id": "f9d2b3c4-5e6f-4a71-8b9c-0d1e2f3a0005",
+      "name": "Resumen del día"
+    }
+  ],
+  "connections": {
+    "Al pulsar Ejecutar": {"main": [[{"node": "Pedidos", "type": "main", "index": 0}]]},
+    "Pedidos": {"main": [[{"node": "Separar pedidos", "type": "main", "index": 0}]]},
+    "Separar pedidos": {"main": [[{"node": "Calcular total", "type": "main", "index": 0}]]},
+    "Calcular total": {"main": [[{"node": "Resumen del día", "type": "main", "index": 0}]]}
+  }
+}</code></pre></div>
+
+    <h2 id="problemas">Problemas frecuentes</h2>
+    <div class="faq">
+      <details><summary>El nodo Code no saca ningún item y no da error</summary><div><p>Estás en <em>Run Once for Each Item</em> y tu código no llega a un <code>return</code> (o devuelve <code>null</code>). En ese modo, un item sin <code>return</code> se descarta en silencio. Revisa que todas las ramas de tu código terminen devolviendo el item.</p></div></details>
+      <details><summary>«Code doesn't return items properly»</summary><div><p>En <em>All Items</em> falta el <code>return</code> al final o devuelves algo que no es una lista de objetos, por ejemplo <code>return 5</code> o <code>return ['a', 'b']</code>. Devuelve <code>[{ json: {...} }]</code>.</p></div></details>
+      <details><summary>«Can't use .all() here»</summary><div><p>Usas <code>$input.all()</code>, <code>.first()</code> o <code>.last()</code> en <em>Run Once for Each Item</em>. Cambia el modo a <em>All Items</em> o usa <code>$json</code> para el item actual.</p></div></details>
+      <details><summary>«Cannot read properties of undefined (reading '…')»</summary><div><p>Lees algo dentro de un campo que no existe en ese item: un nombre mal escrito o un item al que le falta el dato. El mensaje dice la línea y el item. Revisa el panel <em>Input</em> y usa <code>?.</code> y <code>??</code> para los datos opcionales.</p></div></details>
+      <details><summary>Los decimales salen raros (47.550000000000004)</summary><div><p>Es normal en JavaScript (y en casi todos los lenguajes): los decimales no se guardan exactos. Redondea al final de cada cálculo con <code>Math.round(n * 100) / 100</code> y, para mostrarlo, usa <code>n.toFixed(2)</code>.</p></div></details>
+      <details><summary>Después de mi Code, <code>$('Nodo').item</code> da error en otro nodo</summary><div><p>En <em>All Items</em>, si devuelves un número distinto de items, n8n no sabe qué item de salida viene de cuál de entrada (el emparejamiento del módulo 5). Usa <code>.first()</code> o <code>.all()</code> en los nodos siguientes, o añade a cada item <code>pairedItem: índice</code> con el item de entrada del que sale: <code>{ json: {...}, pairedItem: 0 }</code>.</p></div></details>
+      <details><summary>«require is not defined» o «Cannot find module»</summary><div><p>Los módulos están desactivados por defecto. En tu instalación, añade al <code>compose.yml</code> la variable <code>NODE_FUNCTION_ALLOW_BUILTIN=crypto</code> (o los que necesites) y reinicia. Y recuerda que <code>fetch</code> no funciona: para llamar a una API usa HTTP Request.</p></div></details>
+    </div>
+
+    <h2 id="retos">Retos para practicar</h2>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Reto 1 · Pedidos grandes</h3><p style="margin:0">Modifica «Calcular total» para que solo salgan los pedidos de más de 40 € (sin añadir un Filter). ¿Cuántos quedan?</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 2 · Una fila por línea</h3><p style="margin:0">Añade un Code en <em>All Items</em> detrás de «Separar pedidos» que saque un item por cada línea de pedido, con <code>pedido</code>, <code>cliente</code>, <code>producto</code> e <code>importe</code>.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 3 · Fecha en el informe</h3><p style="margin:0">Añade al resumen un campo <code>fecha</code> con el día de hoy en formato <code>27/11/2026</code> y úsalo al principio del texto.</p></div>
+    </div>
+    <details class="term"><summary><i>?</i>Ver las soluciones</summary>
+      <div class="code"><div class="h">Soluciones de los retos<button class="copy" type="button">Copiar</button></div><pre><code><span class="c">// Reto 1 · Al final de «Calcular total», antes del return:</span>
+if (subtotal + iva &lt;= 40) return null;   <span class="c">// el item se descarta</span>
+<span class="c">// Quedan 4 pedidos: 101, 102, 104 y 105 (el 103 y el 106 no llegan a 40 €)</span>
+
+<span class="c">// Reto 2 · Code «Una fila por línea» (Run Once for All Items)</span>
+return $input.all().flatMap(item =&gt;
+  item.json.lineas.map(l =&gt; ({
+    pedido: item.json.id,
+    cliente: item.json.cliente,
+    producto: l.producto,
+    importe: Math.round(l.unidades * l.precio * 100) / 100
+  }))
+);
+<span class="c">// Resultado: 10 items</span>
+
+<span class="c">// Reto 3 · En «Resumen del día»</span>
+const fecha = $today.toFormat('dd/MM/yyyy');
+<span class="c">// y en el json: fecha, resumen: `${fecha} · Hoy: …`</span></code></pre></div>
+    </details>
+
+    <h3>Comprueba tu práctica</h3>
+    <ul class="check" id="checklist" data-ok="¡Muy bien! Ya sabes cuándo y cómo escribir código en n8n.">
+      <li><label><input type="checkbox"><span>Sé cuándo conviene un nodo nativo y cuándo un nodo Code</span></label></li>
+      <li><label><input type="checkbox"><span>Entiendo la diferencia entre Run Once for All Items y Run Once for Each Item</span></label></li>
+      <li><label><input type="checkbox"><span>Sé qué formato tiene que devolver el código en cada modo</span></label></li>
+      <li><label><input type="checkbox"><span>He usado <code>$input.all()</code>, <code>$json</code> y <code>$('Nodo').all()</code> dentro del código</span></label></li>
+      <li><label><input type="checkbox"><span>He calculado totales con <code>reduce</code> y he agrupado datos en un objeto</span></label></li>
+      <li><label><input type="checkbox"><span>He usado <code>console.log</code> y he visto la salida en la consola del navegador</span></label></li>
+      <li><label><input type="checkbox"><span>Sé leer un error del nodo Code (mensaje, línea e item)</span></label></li>
+    </ul>
+    <p class="check-msg" id="check-msg" aria-live="polite"></p>
+
+    <h2 id="test">Comprueba lo que has aprendido</h2>
+    <div id="quiz" class="quiz"></div>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="08-credenciales.html">← Módulo 8: Credenciales</a>
+      <a class="btn" href="10-ia.html">Módulo 10: IA en n8n →</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Basado en la <a href="https://docs.n8n.io/">documentación oficial</a> de n8n 2.x · Revisado en noviembre de 2026</footer>
+
+<script>
+window.FLUJOS = {
+  practica: [
+    { tipo: 'trig', ico: '▶', t: 'Al pulsar Ejecutar', d: 'Manual Trigger' },
+    { ico: '✎', t: 'Pedidos', d: 'JSON · 1 item' },
+    { ico: '⇶', t: 'Separar pedidos', d: 'Split Out · 6 items' },
+    { ico: '{ }', t: 'Calcular total', d: 'Code · Each Item' },
+    { ico: '{ }', t: 'Resumen del día', d: 'Code · All Items · 1 item' }
+  ]
+};
+window.QUIZ = [
+  { p: 'Necesitas un único item con el total de ventas, el pedido medio y el mejor cliente a partir de 50 pedidos. ¿Qué modo eliges?', o: ['Run Once for Each Item', 'Run Once for All Items', 'Da igual'], c: 1, e: 'Para resumir necesitas ver todos los items a la vez: All Items ejecuta el código una vez y puedes devolver un solo item.' },
+  { p: 'En Run Once for Each Item, ¿cómo accedes a los datos del item actual?', o: ['$input.all()[0].json', '$json (o $input.item.json)', '{{ $json }}'], c: 1, e: 'En Each Item el item actual está en $json. $input.all() no existe en ese modo, y las llaves {{ }} son de las expresiones, no del código.' },
+  { p: 'Tu Code en Each Item no saca ningún item y no muestra error. ¿Qué es lo más probable?', o: ['Falta el return: los items sin return se descartan', 'El nodo anterior no tiene datos de verdad', 'Hay que activar la consola'], c: 0, e: 'En Each Item, si el código no devuelve nada (o devuelve null), ese item desaparece sin error.' },
+  { p: '¿Qué devuelve correctamente dos items en Run Once for All Items?', o: ['return { json: [{ a: 1 }, { a: 2 }] }', 'return [{ json: { a: 1 } }, { json: { a: 2 } }]', 'return [{ json: { a: 1 }, total: 2 }]'], c: 1, e: 'Una lista de items, cada uno con su json. La primera opción da «A \'json\' property isn\'t an object» y la tercera, «Invalid output format».' },
+  { p: 'Quieres llamar a una API dentro de un nodo Code con fetch(). ¿Qué pasa?', o: ['Funciona igual que en el navegador', 'No funciona: el Code no tiene acceso a la red; usa HTTP Request', 'Solo funciona en modo All Items'], c: 1, e: 'El nodo Code se ejecuta aislado, sin red ni disco. Pide los datos con HTTP Request y procésalos después.' },
+  { p: 'Haces console.log() en un nodo Code. ¿Dónde ves la salida?', o: ['En el panel Output del nodo', 'En la consola del navegador (F12 → Console)', 'En la pestaña Executions'], c: 1, e: 'Los console.log del nodo Code se muestran en la consola de las herramientas de desarrollo del navegador.' }
+];
+</script>
+<script src="../js/main.js"></script>
+<script>
+{
+  const $c = id => document.getElementById(id);
+
+  /* ===== Laboratorio del nodo Code ===== */
+  const PEDIDOS = [
+    {"id": 101, "cliente": "Lucía Martín", "lineas": [{"producto": "Taza", "unidades": 2, "precio": 9.9}, {"producto": "Camiseta", "unidades": 1, "precio": 19.5}]},
+    {"id": 102, "cliente": "Jorge Pérez", "lineas": [{"producto": "Sudadera", "unidades": 1, "precio": 39}]},
+    {"id": 103, "cliente": "Ana Ruiz", "lineas": [{"producto": "Pegatinas", "unidades": 5, "precio": 3}, {"producto": "Libreta", "unidades": 2, "precio": 6.75}]},
+    {"id": 104, "cliente": "Lucía Martín", "lineas": [{"producto": "Camiseta", "unidades": 2, "precio": 19.5}]},
+    {"id": 105, "cliente": "Marta Gil", "lineas": [{"producto": "Taza", "unidades": 1, "precio": 9.9}, {"producto": "Pegatinas", "unidades": 2, "precio": 3}, {"producto": "Sudadera", "unidades": 1, "precio": 39}]},
+    {"id": 106, "cliente": "Jorge Pérez", "lineas": [{"producto": "Libreta", "unidades": 3, "precio": 6.75}]}
+  ];
+  const CLIENTES = [
+    { nombre: 'Lucía Martín', email: 'lucia@ejemplo.com', ciudad: 'Madrid' },
+    { nombre: 'Jorge Pérez', email: 'jorge@ejemplo.com', ciudad: 'Sevilla' },
+    { nombre: 'Ana Ruiz', email: 'ana@ejemplo.com', ciudad: 'Bilbao' }
+  ];
+  const DEF = {
+    runOnceForAllItems: "// Recorre los items de entrada y añade a cada uno un campo nuevo\nfor (const item of $input.all()) {\n  item.json.revisado = true;\n}\n\nreturn $input.all();",
+    runOnceForEachItem: "// Añade un campo nuevo al item actual\n$input.item.json.revisado = true;\n\nreturn $input.item;"
+  };
+  const A = 'runOnceForAllItems', E = 'runOnceForEachItem';
+  const EJEMPLOS = [
+    { t: 'Añadir un campo', m: E, c: "// $json es el pedido actual\nconst unidades = $json.lineas.reduce((suma, l) => suma + l.unidades, 0);\n\nreturn {\n  json: { ...$json, unidades }\n};" },
+    { t: 'Total de cada pedido', m: A, c: "const r2 = n => Math.round(n * 100) / 100;\n\nreturn $input.all().map(item => {\n  const p = item.json;\n  const subtotal = p.lineas.reduce((s, l) => s + l.unidades * l.precio, 0);\n  return { json: { id: p.id, cliente: p.cliente, total: r2(subtotal * 1.21) } };\n});" },
+    { t: 'Resumen en un item', m: A, c: "const pedidos = $input.all().map(i => i.json);\nconst sinIva = pedidos.reduce((suma, p) =>\n  suma + p.lineas.reduce((s, l) => s + l.unidades * l.precio, 0), 0);\n\nreturn [{\n  json: {\n    pedidos: pedidos.length,\n    ventas_sin_iva: Math.round(sinIva * 100) / 100\n  }\n}];" },
+    { t: 'Una línea por item', m: A, c: "return $input.all().flatMap(item =>\n  item.json.lineas.map(l => ({\n    pedido: item.json.id,\n    cliente: item.json.cliente,\n    producto: l.producto,\n    importe: Math.round(l.unidades * l.precio * 100) / 100\n  }))\n);" },
+    { t: 'Agrupar por cliente', m: A, c: "const grupos = {};\nfor (const { json: p } of $input.all()) {\n  grupos[p.cliente] ??= { cliente: p.cliente, pedidos: 0 };\n  grupos[p.cliente].pedidos += 1;\n}\n\nreturn Object.values(grupos)\n  .sort((a, b) => b.pedidos - a.pedidos);" },
+    { t: 'Datos de otro nodo', m: A, c: "// Busca el email y la ciudad de cada cliente en el nodo «Clientes»\nconst clientes = $('Clientes').all().map(i => i.json);\n\nreturn $input.all().map(item => {\n  const c = clientes.find(x => x.nombre === item.json.cliente);\n  return {\n    json: {\n      id: item.json.id,\n      cliente: item.json.cliente,\n      email: c?.email ?? 'sin email',\n      ciudad: c?.ciudad ?? 'desconocida'\n    }\n  };\n});" },
+    { t: 'Filtrar sin Filter', m: E, c: "// Solo los pedidos con 2 productos o más\nif ($json.lineas.length < 2) {\n  return null;   // este item se descarta\n}\n\nreturn $input.item;" },
+    { t: 'Fecha con $now', m: E, c: "return {\n  json: {\n    id: $json.id,\n    procesado: $now.toFormat('dd/MM/yyyy HH:mm')\n  }\n};" },
+    { t: 'console.log', m: E, c: "console.log('Pedido', $json.id, 'tiene', $json.lineas.length, 'líneas');\nconsole.log($json.lineas[0]);\n\nreturn $input.item;" },
+    { t: 'Error: .all() en Each Item', m: E, err: 1, c: "const todos = $input.all();\n\nreturn { json: { cuantos: todos.length } };" },
+    { t: 'Error: lista en Each Item', m: E, err: 1, c: "// En este modo hay que devolver un objeto, no una lista\nreturn [$json];" },
+    { t: 'Error: clave fuera de json', m: A, err: 1, c: "return $input.all().map(item => ({\n  json: item.json,\n  revisado: true   // debería ir dentro de json\n}));" },
+    { t: 'Error: campo que no existe', m: E, err: 1, c: "// El campo se llama «lineas», no «productos»\nconst n = $json.productos.length;\n\nreturn { json: { id: $json.id, n } };" },
+    { t: 'Error: falta el return', m: E, err: 1, c: "const unidades = $json.lineas.reduce((s, l) => s + l.unidades, 0);\n$json.unidades = unidades;\n// … y no hay return" }
+  ];
+
+  /* Código que se ejecuta aislado (en un Web Worker) */
+  function motor() {
+    const AF = Object.getPrototypeOf(async function () {}).constructor;
+    const PARAMS = ['$input', '$json', '$', '$now', '$today', 'console', 'items', 'item'];
+    const RX_LINEA = /(?:<anonymous>|Function):(\d+):\d+/;
+    let offset = 2;
+    try { new AF('a', 'throw new Error("x")')().catch(e => { const m = (e.stack || '').match(RX_LINEA); if (m) offset = Number(m[1]) - 1; }); } catch (e) { /* sin sonda */ }
+    const fmt = v => { if (typeof v === 'string') return v; if (v === undefined) return 'undefined'; try { return JSON.stringify(v, null, 2); } catch (e) { return String(v); } };
+    const pad = n => String(n).padStart(2, '0');
+    const fecha = d => ({
+      toFormat: f => String(f).replace(/yyyy|MM|dd|HH|mm/g, t => ({ yyyy: d.getFullYear(), MM: pad(d.getMonth() + 1), dd: pad(d.getDate()), HH: pad(d.getHours()), mm: pad(d.getMinutes()) }[t])),
+      toISO: () => d.toISOString(),
+      toJSON: () => d.toISOString(),
+      toString: () => d.toISOString()
+    });
+    const copia = v => JSON.parse(JSON.stringify(v));
+    const seguro = v => { if (v === undefined) return { __indefinido: true }; try { return copia(v); } catch (e) { return String(v); } };
+    async function ejecutar({ code, mode, items, clientes }) {
+      const logs = [];
+      const con = { log: (...a) => logs.push(a.map(fmt).join(' ')) };
+      con.info = con.warn = con.error = con.debug = con.log;
+      const nodo = data => ({ all: () => data.map(j => ({ json: copia(j) })), first: () => ({ json: copia(data[0]) }), last: () => ({ json: copia(data[data.length - 1]) }) });
+      const $ = nombre => {
+        if (nombre === 'Clientes') return nodo(clientes);
+        if (nombre === 'Separar pedidos') return nodo(items);
+        throw new Error(`No hay ningún nodo llamado «${nombre}» en el laboratorio (prueba con 'Clientes')`);
+      };
+      const ahora = new Date(), hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      let fn;
+      try { fn = new AF(...PARAMS, code); } catch (e) { return { error: { message: e.message, description: e.name }, logs }; }
+      let idx;
+      try {
+        if (mode === 'runOnceForAllItems') {
+          const input = items.map(j => ({ json: copia(j) }));
+          const $input = { all: () => input, first: () => input[0], last: () => input[input.length - 1] };
+          const r = await fn($input, undefined, $, fecha(ahora), fecha(hoy), con, input, undefined);
+          return { results: [seguro(r)], logs };
+        }
+        const res = [];
+        for (idx = 0; idx < items.length; idx++) {
+          const it = { json: copia(items[idx]) };
+          const r = await fn({ item: it }, it.json, $, fecha(ahora), fecha(hoy), con, undefined, it);
+          res.push(seguro(r));
+        }
+        return { results: res, logs };
+      } catch (e) {
+        const m = (e && e.stack || '').match(RX_LINEA);
+        const linea = m ? Number(m[1]) - offset : undefined;
+        const tipo = e && e.name && e.name !== 'Error' ? e.name : null;
+        let message = (e && e.message) || String(e);
+        if (linea !== undefined) message += mode === 'runOnceForEachItem' ? ` [line ${linea}, for item ${idx}]` : ` [line ${linea}]`;
+        return { error: { message, description: tipo }, logs };
+      }
+    }
+    if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope) {
+      self.onmessage = async ev => { self.postMessage(await ejecutar(ev.data)); };
+    }
+    return ejecutar;
+  }
+
+  /* Validación de la salida, como en n8n (result-validation.js) */
+  const CLAVES = new Set(['json', 'binary', 'pairedItem', 'error', 'index']);
+  const esObjeto = v => typeof v === 'object' && v !== null && !Array.isArray(v);
+  class ErrN8n extends Error { constructor(message, description, itemIndex, lineNumber) { super(lineNumber !== undefined && itemIndex !== undefined ? `${message} [line ${lineNumber}, for item ${itemIndex}]` : itemIndex !== undefined ? `${message} [item ${itemIndex}]` : message); this.description = description; } }
+  const indef = v => esObjeto(v) && v.__indefinido === true && Object.keys(v).length === 1;
+  const validarItem = (it, i) => {
+    if (!esObjeto(it.json)) throw new ErrN8n("A 'json' property isn't an object", "In the returned data, every key named 'json' must point to an object.", i);
+  };
+  const validarClaves = (it, i) => {
+    let reservada = null; const otras = [];
+    Object.keys(it).forEach(k => { if (CLAVES.has(k)) reservada ??= k; else otras.push(k); });
+    if (otras.length) {
+      if (reservada) throw new ErrN8n('Invalid output format', `An output item contains the reserved key ${reservada}. To get around this, please wrap each item in an object, under a key called json.`, i);
+      throw new ErrN8n(`Unknown top-level item key: ${otras[0]}`, 'Access the properties of an item under `.json`, e.g. `item.json`', i);
+    }
+  };
+  const normalizar = d => {
+    if (esObjeto(d)) d = d.json ? [d] : [{ json: d }];
+    if (d.every(x => typeof x === 'object' && 'json' in x)) return d;
+    if (d.some(x => typeof x === 'object' && 'json' in x)) throw new ErrN8n('Inconsistent item format', '');
+    return d.map(x => ({ json: x }));
+  };
+  const validarTodos = r => {
+    if (indef(r) || typeof r !== 'object') throw new ErrN8n("Code doesn't return items properly", 'Please return an array of objects, one for each item you would like to output.');
+    if (r === null) return [];
+    if (Array.isArray(r)) {
+      if (r.some(x => !esObjeto(x))) throw new ErrN8n("Code doesn't return items properly", 'Please return an array of objects, one for each item you would like to output.');
+      if (r.some(x => Object.keys(x).some(k => CLAVES.has(k)))) r.forEach(validarClaves);
+    }
+    const out = normalizar(r);
+    out.forEach(validarItem);
+    return out;
+  };
+  const validarCada = rs => {
+    const out = [];
+    rs.forEach((r, i) => {
+      if (indef(r) || r === null || !r) return;           // sin return o null: el item se descarta
+      const json = esObjeto(r) ? ('json' in r ? r.json : r) : r;
+      const it = { json, pairedItem: { item: i } };
+      validarItem(it, i);
+      out.push(it);
+    });
+    return out;
+  };
+  const prohibidos = code => {
+    const m = code.match(/\$input\.(first|last|all|itemMatching)/);
+    if (!m) return;
+    const linea = code.split('\n').findIndex(l => { l = l.trimStart(); return l.includes(m[1]) && !l.startsWith('//') && !l.startsWith('/*') && !l.startsWith('*'); }) + 1;
+    if (linea) throw new ErrN8n(`Can't use .${m[1]}() here`, "This is only available in 'Run Once for All Items' mode", 0, linea);
+  };
+
+  /* Ejecución con límite de tiempo */
+  const FUENTE = '(' + motor.toString() + ')()';
+  let worker = null, enCurso = null;
+  const crearWorker = () => { try { worker = new Worker(URL.createObjectURL(new Blob([FUENTE], { type: 'text/javascript' }))); } catch (e) { worker = null; } };
+  crearWorker();
+  const local = motor();
+  const lanzar = datos => new Promise(resolve => {
+    if (!worker) { local(datos).then(resolve); return; }
+    const t = setTimeout(() => {
+      worker.terminate(); crearWorker();
+      resolve({ timeout: true, logs: [] });
+    }, 3000);
+    enCurso = r => { clearTimeout(t); resolve(r); };
+    worker.onmessage = ev => enCurso(ev.data);
+    worker.onerror = ev => { ev.preventDefault(); clearTimeout(t); worker.terminate(); crearWorker(); local(datos).then(resolve); };
+    worker.postMessage(datos);
+  });
+
+  const st = { mode: A };
+  const pintarModo = () => document.querySelectorAll('#codelab [data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === st.mode));
+  const limpiar = () => { $c('cl-st').textContent = ''; $c('cl-st').className = 'hook-st'; $c('cl-output').textContent = 'Pulsa «Execute step».'; $c('cl-console').textContent = '—'; $c('cl-msg').textContent = ''; $c('cl-msg').className = 'hook-msg'; $c('codelab').classList.remove('fail'); };
+  const mostrarError = (msg, desc, logs) => {
+    $c('codelab').classList.add('fail');
+    $c('cl-st').textContent = 'Error'; $c('cl-st').className = 'hook-st bad';
+    $c('cl-output').textContent = msg + (desc ? '\n\n' + desc : '');
+    $c('cl-console').textContent = logs && logs.length ? logs.join('\n') : '—';
+    $c('cl-msg').textContent = 'El nodo se detiene y no sale ningún item.'; $c('cl-msg').className = 'hook-msg bad';
+  };
+  const ejecutarLab = async () => {
+    const code = $c('cl-code').value;
+    const btn = $c('cl-run'); btn.disabled = true;
+    limpiar(); $c('cl-output').textContent = 'Ejecutando…';
+    try {
+      if (st.mode === E) prohibidos(code);
+      const r = await lanzar({ code, mode: st.mode, items: PEDIDOS, clientes: CLIENTES });
+      if (r.timeout) return mostrarError('Task execution timed out after 3 seconds', 'The task runner was taking too long on this task, so the task was aborted. Ensure that all paths in your script are able to terminate, i.e. no infinite loops.', []);
+      if (r.error) return mostrarError(r.error.message, r.error.description, r.logs);
+      const items = st.mode === A ? validarTodos(r.results[0]) : validarCada(r.results);
+      $c('cl-st').textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
+      $c('cl-st').className = 'hook-st ' + (items.length ? 'ok' : 'bad');
+      $c('cl-output').textContent = JSON.stringify(items.map(i => i.json), null, 2);
+      $c('cl-console').textContent = r.logs.length ? r.logs.join('\n') : '—';
+      const n = PEDIDOS.length;
+      let m = st.mode === A ? `El código se ha ejecutado 1 vez con ${n} items de entrada.` : `El código se ha ejecutado ${n} veces, una por item.`;
+      if (st.mode === E && items.length < n) m += ` ${n - items.length} item${n - items.length === 1 ? '' : 's'} no devolvi${n - items.length === 1 ? 'ó' : 'eron'} nada y se descart${n - items.length === 1 ? 'ó' : 'aron'}.`;
+      $c('cl-msg').textContent = m; $c('cl-msg').className = 'hook-msg ' + (items.length ? 'ok' : 'warn');
+    } catch (e) {
+      if (e instanceof ErrN8n) mostrarError(e.message, e.description, []);
+      else mostrarError(e.message || String(e), e.description || '', []);
+    } finally { btn.disabled = false; }
+  };
+
+  const cargar = (code, mode) => { st.mode = mode; $c('cl-code').value = code; pintarModo(); limpiar(); };
+  $c('cl-input').textContent = JSON.stringify(PEDIDOS, null, 2);
+  $c('cl-nin').textContent = PEDIDOS.length + ' items';
+  $c('cl-clientes').textContent = JSON.stringify(CLIENTES, null, 2);
+  $c('cl-chips').innerHTML = EJEMPLOS.map((e, i) => `<button type="button" data-ej="${i}"${e.err ? ' class="err"' : ''}>${e.t} <small>${e.m === A ? 'All' : 'Each'}</small></button>`).join('');
+  $c('cl-chips').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-ej]'); if (!b) return;
+    const e = EJEMPLOS[+b.dataset.ej]; cargar(e.c, e.m);
+    $c('cl-code').focus({ preventScroll: true });
+  });
+  $c('codelab').addEventListener('click', ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    if (b.dataset.mode) {
+      const actual = $c('cl-code').value.trim();
+      const vaciaODefecto = !actual || actual === DEF[A].trim() || actual === DEF[E].trim();
+      st.mode = b.dataset.mode; pintarModo();
+      if (vaciaODefecto) $c('cl-code').value = DEF[st.mode];
+      limpiar();
+    } else if (b.id === 'cl-run') ejecutarLab();
+    else if (b.id === 'cl-reset') cargar(DEF[st.mode], st.mode);
+  });
+  $c('cl-code').addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); ejecutarLab(); }
+  });
+  cargar(DEF[A], A);
+}
+</script>
+</body>
+</html>

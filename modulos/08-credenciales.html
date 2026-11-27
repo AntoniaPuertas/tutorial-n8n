@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 8 · Credenciales e integraciones en n8n: Gmail, Google Sheets, Telegram y HTTP Request</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m8" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 8 · 60 minutos</span>
+    <h1>Credenciales e integraciones</h1>
+    <p class="lead">Hasta ahora tus workflows trabajaban con datos inventados. Ha llegado el momento de conectarlos con el mundo: pedir datos a una API, guardar filas en <strong>Google Sheets</strong>, enviar un email con <strong>Gmail</strong> o un mensaje por <strong>Telegram</strong>. Para eso n8n necesita permiso, y ese permiso se guarda en las <strong>credenciales</strong>.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#que-es">Credenciales</a><a href="#tipos">Tipos</a><a href="#crear">Crear y probar</a><a href="#seguridad">Seguridad</a><a href="#google">Google</a><a href="#sheets">Sheets</a><a href="#gmail">Gmail</a><a href="#telegram">Telegram</a><a href="#http">HTTP Request</a><a href="#probador">Probador</a><a href="#practica">Práctica</a><a href="#solucion">Solución</a><a href="#problemas">Problemas</a><a href="#test">Test</a>
+    </nav>
+
+    <div class="note info"><p>Basado en la documentación y el código de <strong>n8n 2.x</strong> (estable 2.49.8 a finales de noviembre de 2026). Versiones de nodo usadas: <em>HTTP Request</em> 4.5, <em>Google Sheets</em> 4.7, <em>Gmail</em> 2.2 y <em>Telegram</em> 1.2. Las pantallas de Google Cloud cambian a menudo: si un menú no coincide, busca el nombre de la opción en su buscador.</p></div>
+
+    <h2 id="que-es">Qué es una credencial</h2>
+    <p>Una <strong>credencial</strong> es la llave que usa n8n para entrar en otro servicio en tu nombre: un token, una clave de API, un usuario y contraseña o el permiso que le das con tu cuenta de Google.</p>
+    <p>La idea clave es que <strong>la llave no vive dentro del workflow</strong>. Se guarda aparte, una sola vez, y los nodos solo dicen «usa la credencial llamada <em>Mi bot de Telegram</em>».</p>
+    <div class="items-demo" aria-label="Esquema: el workflow solo guarda el nombre de la credencial; el token está cifrado en n8n">
+      <div class="col"><h4>En el workflow</h4><span class="it">Nodo «Enviar a Telegram»</span><span class="it">credencial: <code>Mi bot de Telegram</code></span><span class="it">(sin token)</span></div>
+      <div class="mid"><span class="nd-box">n8n<br><small>la busca y la descifra</small></span></div>
+      <div class="col"><h4>En la base de datos de n8n</h4><span class="it ok">Mi bot de Telegram</span><span class="it ok">Access Token: cifrado</span><span class="it ok">Solo se usa al ejecutar</span></div>
+    </div>
+    <p>Esto tiene tres ventajas muy prácticas:</p>
+    <ul>
+      <li><strong>Puedes compartir o exportar un workflow sin miedo.</strong> En el JSON solo aparecen el <code>id</code> y el nombre de la credencial, nunca el secreto.</li>
+      <li><strong>La reutilizas en muchos nodos.</strong> Si el token cambia, lo actualizas en un solo sitio y todos los workflows siguen funcionando.</li>
+      <li><strong>Están cifradas.</strong> n8n las guarda cifradas con una <strong>clave de cifrado</strong> que genera la primera vez que arranca y guarda en <code>/home/node/.n8n</code>, el volumen que creaste en el módulo 2. Si pierdes ese volumen, pierdes la clave y n8n ya no puede leer tus credenciales.</li>
+    </ul>
+    <div class="note warn"><p>Por eso en el módulo 2 se insistía en no borrar el volumen <code>n8n_data</code>. Si n8n arranca con otra clave, al usar una credencial verás: <em>Credentials could not be decrypted. The likely reason is that a different "encryptionKey" was used to encrypt the data.</em> Si quieres controlar tú la clave, puedes fijarla con la variable <code>N8N_ENCRYPTION_KEY</code> y guardarla en un sitio seguro.</p></div>
+
+    <h2 id="tipos">Tipos de autenticación</h2>
+    <p>Cada servicio decide cómo hay que identificarse. En la práctica te encontrarás casi siempre uno de estos cuatro:</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Tipo</th><th>Cómo funciona</th><th>Ejemplos</th></tr></thead>
+      <tbody>
+        <tr><td>Token o clave de API</td><td>Un texto secreto que el servicio te da. n8n lo envía en cada petición, normalmente en una cabecera (<code>Authorization: Bearer …</code> o <code>X-API-Key: …</code>) o en la URL.</td><td>Telegram, OpenAI, Airtable, la mayoría de las API</td></tr>
+        <tr><td>Usuario y contraseña (Basic)</td><td>n8n envía usuario y contraseña codificados en la cabecera <code>Authorization</code>. Es sencillo pero poco recomendable si el servicio ofrece otra cosa.</td><td>APIs internas, routers, algunos ERP</td></tr>
+        <tr><td>OAuth2</td><td>No le das tu contraseña a n8n: inicias sesión en el servicio y le das permiso. El servicio entrega a n8n un <em>token</em> que caduca y que n8n renueva solo.</td><td>Google (Gmail, Sheets, Drive), Microsoft, Slack</td></tr>
+        <tr><td>Cuenta de servicio</td><td>Una «cuenta robot» del propio servicio, con su archivo de claves. Útil en empresas, sin depender de la cuenta de una persona.</td><td>Google (opción <em>Service Account</em>)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3>OAuth2 en cuatro pasos</h3>
+    <p>OAuth2 asusta un poco la primera vez, pero el viaje siempre es el mismo. Lo harás con Google en la práctica:</p>
+    <div class="flow" data-flujo="oauth"></div>
+    <p>La pieza que más errores da es la <strong>Redirect URL</strong> (dirección de vuelta): el servicio solo devuelve el permiso a una dirección que tú le hayas autorizado antes. En tu instalación local es <code>http://localhost:5678/rest/oauth2-credential/callback</code>.</p>
+
+    <h2 id="crear">Crear, probar y gestionar credenciales</h2>
+    <p>Hay dos caminos para crear una credencial, y los dos llevan a la misma ventana:</p>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Desde un nodo</h3><p style="margin:0">Abre el nodo (por ejemplo, Telegram). Arriba verás el desplegable de credenciales: elige <strong>Create new credential</strong>. n8n ya sabe qué tipo necesitas. Es el camino más cómodo.</p></div>
+      <div class="card"><h3 style="margin-top:0">Desde Overview</h3><p style="margin:0">En <em>Overview</em>, pestaña <strong>Credentials</strong>, usa el botón de crear y elige <strong>Create credential</strong>. Busca el servicio en <em>Search for app...</em> y pulsa <strong>Continue</strong>.</p></div>
+    </div>
+    <p>En la ventana de la credencial:</p>
+    <ol class="steps">
+      <li><strong>Rellena los campos</strong> que pide (token, Client ID…). Cada credencial tiene un enlace a su documentación por si dudas.</li>
+      <li><strong>Ponle un nombre claro</strong> haciendo clic en el título: «Telegram · bot del tiempo» es mejor que «Telegram account 2».</li>
+      <li><strong>Guarda</strong> con <em>Save</em>. Muchas credenciales se prueban solas al guardar: verás <strong>Connection tested successfully</strong> en verde o <strong>Couldn’t connect with these settings</strong> en rojo, con el motivo. En las de OAuth2, el paso final es el botón <em>Sign in with Google</em> o <em>Connect my account</em>; al terminar aparece <strong>Account connected</strong>.</li>
+    </ol>
+    <p>Luego, en cada nodo, eliges la credencial en ese desplegable. Si solo tienes una del tipo que necesita, n8n la selecciona automáticamente.</p>
+    <div class="note tip"><p>Si cambias el token de una credencial, no tienes que tocar los workflows: todos los nodos que la usan cogen el nuevo valor en la siguiente ejecución.</p></div>
+    <p>En instalaciones con varios usuarios, el dueño de una credencial puede <strong>compartirla</strong>: los demás pueden usarla en sus workflows, pero no ven sus datos. En tu instalación local eres el único usuario, así que no lo necesitas.</p>
+
+    <h2 id="seguridad">Buenas prácticas de seguridad</h2>
+    <ul class="lines">
+      <li><code>Nunca en parámetros</code><span>No pegues un token en la URL, en una cabecera escrita a mano, en un Edit Fields o en un nodo Code. Quedaría a la vista en el workflow, en las ejecuciones y en cualquier exportación. Para eso están las credenciales.</span></li>
+      <li><code>Permisos mínimos</code><span>Si un servicio te deja elegir qué puede hacer la clave (solo lectura, una sola hoja…), da solo lo que el workflow necesita.</span></li>
+      <li><code>Una por uso</code><span>Mejor una credencial por servicio y propósito («Sheets · informes») que una «para todo». Si algo falla o se filtra, el problema queda acotado.</span></li>
+      <li><code>Si se filtra, revócala</code><span>Genera un token nuevo en el servicio (en Telegram, con <code>/revoke</code> en BotFather), actualiza la credencial y el viejo deja de servir.</span></li>
+      <li><code>Copia de la clave</code><span>Haz copia de seguridad del volumen de n8n o guarda tu <code>N8N_ENCRYPTION_KEY</code>: sin ella, las credenciales no se pueden recuperar.</span></li>
+    </ul>
+
+    <h2 id="google">Conectar con Google (Gmail, Sheets, Drive)</h2>
+    <p>En una instalación propia, Google no sabe quién es tu n8n. Tienes que darlo de alta una vez en <strong>Google Cloud</strong> como «aplicación» y obtener dos datos: <strong>Client ID</strong> y <strong>Client Secret</strong>. Es gratis y lo haces en unos 10 minutos. El mismo Client ID te sirve después para Gmail, Sheets y Drive.</p>
+    <div class="note info"><p>En n8n Cloud hay un botón para conectar Google con un clic. En tu instalación local tienes que crear tu propia aplicación OAuth, como se explica aquí.</p></div>
+    <ol class="steps">
+      <li><strong>Crea un proyecto.</strong> Entra en <a href="https://console.cloud.google.com/">console.cloud.google.com</a> con tu cuenta de Google. En el selector de proyectos de arriba, elige <em>New project</em>, ponle un nombre («n8n local») y créalo. Comprueba que queda seleccionado.</li>
+      <li><strong>Activa las API.</strong> Ve a <em>APIs &amp; Services → Library</em>, busca y pulsa <em>Enable</em> en: <strong>Google Sheets API</strong> y <strong>Google Drive API</strong> (Sheets necesita las dos) y, si vas a enviar emails, <strong>Gmail API</strong>.</li>
+      <li><strong>Configura la pantalla de consentimiento.</strong> Ve a <em>APIs &amp; Services → OAuth consent screen</em> y pulsa <em>Get started</em>. Escribe un <em>App name</em> («n8n local») y tu email de soporte. En <em>Audience</em> elige <strong>External</strong> (si tienes una cuenta normal de Gmail) e introduce tu email de contacto. Acepta y pulsa <em>Create</em>.</li>
+      <li><strong>Añádete como usuario de prueba.</strong> La app empieza en modo <em>Testing</em>: solo pueden usarla las cuentas que añadas. En la página <em>Audience</em>, en <em>Test users</em>, añade la cuenta de Google con la que vas a conectar.</li>
+      <li><strong>Copia la Redirect URL de n8n.</strong> En n8n, empieza a crear la credencial (por ejemplo, <em>Google Sheets OAuth2 API</em>). Arriba verás <strong>OAuth Redirect URL</strong>: cópiala. En local será <code>http://localhost:5678/rest/oauth2-credential/callback</code>.</li>
+      <li><strong>Crea el cliente OAuth.</strong> En Google Cloud, ve a <em>APIs &amp; Services → Credentials → Create credentials → OAuth client ID</em>. <em>Application type</em>: <strong>Web application</strong>. En <em>Authorized redirect URIs</em> pega la URL de n8n tal cual y pulsa <em>Create</em>. Google te muestra el <strong>Client ID</strong> y el <strong>Client Secret</strong>.</li>
+      <li><strong>Termina en n8n.</strong> Pega el Client ID y el Client Secret en la credencial, pulsa <strong>Sign in with Google</strong>, elige tu cuenta y acepta los permisos. Como la app no está verificada, Google mostrará un aviso: es tu propia app, así que puedes continuar. Al volver verás <em>Account connected</em>.</li>
+    </ol>
+    <div class="note warn"><p>Mientras la app esté en modo <em>Testing</em>, Google hace caducar el permiso a los <strong>7 días</strong>. Si un workflow de Google empieza a fallar a la semana, abre la credencial y vuelve a conectarla (<em>Reconnect</em>). Para uso personal continuado puedes pasar la app a producción desde la página <em>Audience</em> de Google Cloud.</p></div>
+    <p>Cada nodo de Google tiene su propio tipo de credencial (<em>Gmail OAuth2 API</em>, <em>Google Sheets OAuth2 API</em>, <em>Google Drive OAuth2 API</em>…), porque cada uno pide permisos distintos. Puedes usar el mismo Client ID y Client Secret en todas: solo repites el paso 7.</p>
+
+    <h2 id="sheets">El nodo Google Sheets</h2>
+    <p>Google Sheets es la «base de datos» favorita para empezar: todo el mundo sabe abrir una hoja de cálculo y ver qué ha guardado el workflow. El nodo trabaja con filas, y la <strong>fila 1 son los nombres de las columnas</strong>.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Operación</th><th>Qué hace</th><th>Salida</th></tr></thead>
+      <tbody>
+        <tr><td>Append Row</td><td>Añade una fila al final por cada item que recibe.</td><td>Los datos de cada fila añadida</td></tr>
+        <tr><td>Append or Update Row</td><td>Busca una fila por una columna (<em>Column to match on</em>, por ejemplo <code>email</code>): si existe, la actualiza; si no, la añade.</td><td>Los datos de cada fila</td></tr>
+        <tr><td>Get Row(s)</td><td>Lee filas, todas o las que cumplan un filtro.</td><td>Un item por fila</td></tr>
+        <tr><td>Update Row</td><td>Actualiza las filas que coinciden con una columna.</td><td>Los datos actualizados</td></tr>
+        <tr><td>Delete Rows or Columns</td><td>Borra filas o columnas a partir de una posición.</td><td>—</td></tr>
+        <tr><td>Clear</td><td>Vacía la hoja o parte de ella.</td><td>—</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <ul class="lines">
+      <li><code>Document</code><span>La hoja de cálculo. Puedes elegirla <em>From list</em> (n8n busca en tu Drive), <em>By URL</em> (pegas el enlace) o <em>By ID</em>.</span></li>
+      <li><code>Sheet</code><span>La pestaña dentro del documento («Hoja 1»).</span></li>
+      <li><code>Mapping Column Mode</code><span><strong>Map Each Column Manually</strong>: n8n lee la fila 1 y te muestra una casilla por columna para escribir o arrastrar el valor. <strong>Map Automatically</strong>: si los campos del item se llaman igual que las columnas, los coloca solos.</span></li>
+    </ul>
+    <div class="note warn"><p>Con <em>Map Automatically</em>, cualquier campo que no tenga columna se añade como <strong>columna nueva</strong> (es el valor por defecto de la opción <em>Handling extra fields in input</em>). Si tu item trae campos de más, usa <em>Map Each Column Manually</em> o limpia antes el item con un Edit Fields.</p></div>
+
+    <h2 id="gmail">El nodo Gmail</h2>
+    <p>Con la credencial <em>Gmail OAuth2 API</em>, el nodo Gmail lee y envía correos desde tu cuenta. Lo más habitual es <strong>Send</strong> (enviar un mensaje):</p>
+    <ul class="lines">
+      <li><code>To</code><span>Destinatarios, separados por comas.</span></li>
+      <li><code>Subject</code><span>Asunto. Admite expresiones: <code>Pedido {{ $json.id }} recibido</code>.</span></li>
+      <li><code>Email Type</code><span><em>HTML</em> (por defecto, permite negritas y enlaces) o <em>Text</em> (texto plano).</span></li>
+      <li><code>Message</code><span>El cuerpo del correo.</span></li>
+      <li><code>Options</code><span><em>Append n8n Attribution</em> (viene activada y añade «This email was sent automatically with n8n» al final: desactívala), <em>CC</em>, <em>BCC</em>, <em>Sender Name</em>, <em>Reply To</em> y <em>Attachments</em> para adjuntar archivos.</span></li>
+    </ul>
+    <p>Otras operaciones útiles: <em>Get Many</em> (buscar correos con la misma sintaxis que el buscador de Gmail, como <code>from:banco has:attachment</code>), <em>Reply</em>, <em>Add Label</em>, <em>Mark as Read</em> y <em>Send and Wait for Response</em> (envía un correo con botones y espera la respuesta). Para reaccionar a correos nuevos tienes el <em>Gmail Trigger</em> que viste en el módulo 6.</p>
+
+    <h2 id="telegram">Telegram: tu propio bot</h2>
+    <p>Telegram es la forma más rápida de que un workflow te avise en el móvil: es gratis, no necesita Google Cloud y la credencial es un único token.</p>
+    <h3>1 · Crea el bot con BotFather</h3>
+    <ol class="steps">
+      <li>En Telegram, busca <strong>@BotFather</strong> (el oficial tiene la marca de verificación) y escríbele <code>/newbot</code>.</li>
+      <li>Te pide un <strong>nombre</strong> (el que se ve, por ejemplo «Mi bot del tiempo») y un <strong>username</strong>: de 5 a 32 caracteres, solo letras, números y guiones bajos, y terminado en <code>bot</code> (por ejemplo <code>parte_tiempo_ana_bot</code>). El username no se puede cambiar después.</li>
+      <li>BotFather te responde con el <strong>token</strong>, algo como <code>8123456789:AAH…</code>. Quien tenga ese token controla el bot: trátalo como una contraseña.</li>
+    </ol>
+    <h3>2 · La credencial</h3>
+    <p>Crea una credencial <strong>Telegram API</strong> y pega el token en <em>Access Token</em> (deja <em>Base URL</em> como está). Al guardar, n8n la prueba preguntando a Telegram quién es el bot.</p>
+    <h3>3 · Tu Chat ID</h3>
+    <p>Para enviarte un mensaje, el bot necesita saber a qué chat. Hay una regla de Telegram importante: <strong>un bot no puede escribir primero</strong>. Antes tienes que abrir el chat con tu bot y enviarle cualquier mensaje (por ejemplo, <code>/start</code>).</p>
+    <p>Después, abre en el navegador esta dirección, cambiando <code>TU_TOKEN</code> por el token del bot:</p>
+    <div class="code"><div class="h">Ver los últimos mensajes del bot<button class="copy" type="button">Copiar</button></div><pre><code>https://api.telegram.org/botTU_TOKEN/getUpdates</code></pre></div>
+    <p>En la respuesta busca <code>"chat":{"id":123456789</code>: ese número es tu <strong>Chat ID</strong>. Si sale <code>"result":[]</code>, envía otro mensaje al bot y recarga. En los grupos, el id empieza por un signo menos: cópialo también.</p>
+    <div class="note warn"><p>Esa URL lleva tu token dentro: no la compartas ni hagas capturas de ella. La descripción del propio nodo sugiere también preguntar a un bot como <em>@get_id_bot</em>, pero con <em>getUpdates</em> no dependes de terceros.</p></div>
+    <h3>4 · El nodo Telegram</h3>
+    <ul class="lines">
+      <li><code>Resource · Operation</code><span><em>Message</em> · <em>Send Message</em> (vienen por defecto). Hay muchas más: enviar fotos, documentos, ubicaciones, editar o borrar mensajes…</span></li>
+      <li><code>Chat ID</code><span>El número que acabas de conseguir.</span></li>
+      <li><code>Text</code><span>El mensaje. Admite expresiones y saltos de línea.</span></li>
+      <li><code>Parse Mode</code><span>En <em>Additional Fields</em>. Indica cómo interpretar el formato: <em>HTML</em> (<code>&lt;b&gt;negrita&lt;/b&gt;</code>), <em>Markdown</em> o <em>MarkdownV2</em>. Si no lo añades, n8n usa Markdown, y un guion bajo suelto en el texto (como en <code>mi_archivo</code>) hace fallar el envío. Elegir HTML evita sorpresas.</span></li>
+      <li><code>Append n8n Attribution</code><span>También en <em>Additional Fields</em>. Viene activada y añade «This message was sent automatically with n8n». Desactívala.</span></li>
+    </ul>
+    <div class="note info"><p>Para que el bot <em>reciba</em> mensajes (el <em>Telegram Trigger</em>), Telegram necesita una URL pública con HTTPS, como viste en el módulo 6. Enviar mensajes, en cambio, funciona perfectamente desde <code>localhost</code>.</p></div>
+
+    <h2 id="http">HTTP Request: la navaja suiza</h2>
+    <p>n8n tiene nodos para cientos de servicios, pero no para todos. Y a veces el nodo existe pero no tiene la operación que buscas. Para esos casos está <strong>HTTP Request</strong>: hace una llamada a cualquier API, igual que tu navegador cuando abre una página.</p>
+    <h3>Las partes de una petición</h3>
+    <ul class="lines">
+      <li><code>Method</code><span><em>GET</em> para pedir datos, <em>POST</em> para crear, <em>PUT</em> / <em>PATCH</em> para modificar y <em>DELETE</em> para borrar. La documentación de la API te dice cuál usar.</span></li>
+      <li><code>URL</code><span>La dirección del recurso: <code>https://api.open-meteo.com/v1/forecast</code>.</span></li>
+      <li><code>Authentication</code><span><em>None</em> para API abiertas, <em>Predefined Credential Type</em> para reutilizar una credencial de un servicio que n8n ya conoce, o <em>Generic Credential Type</em> para el resto (Bearer, Header, Query, Basic, OAuth2…).</span></li>
+      <li><code>Send Query Parameters</code><span>Los datos que van en la URL después de <code>?</code> (<code>?latitude=40.42&amp;longitude=-3.7</code>). Mejor escribirlos aquí, <em>Using Fields Below</em>, que pegarlos en la URL: se leen mejor y admiten expresiones.</span></li>
+      <li><code>Send Headers</code><span>Cabeceras extra, como <code>Accept-Language</code>. Las de autenticación no van aquí: las pone la credencial.</span></li>
+      <li><code>Send Body</code><span>Los datos que envías al crear o modificar (con POST, PUT, PATCH), normalmente en JSON.</span></li>
+    </ul>
+    <h3>Generic Credential Type: ¿cuál elijo?</h3>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>La API pide…</th><th>Generic Auth Type</th><th>Qué rellenas</th></tr></thead>
+      <tbody>
+        <tr><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>Bearer Auth</td><td><em>Bearer Token</em></td></tr>
+        <tr><td>Una cabecera propia (<code>X-API-Key</code>, <code>apikey</code>…)</td><td>Header Auth</td><td><em>Name</em> (la cabecera) y <em>Value</em> (la clave)</td></tr>
+        <tr><td>La clave en la URL (<code>?api_key=…</code>)</td><td>Query Auth</td><td><em>Name</em> y <em>Value</em> del parámetro</td></tr>
+        <tr><td>Usuario y contraseña</td><td>Basic Auth</td><td><em>User</em> y <em>Password</em></td></tr>
+        <tr><td>Iniciar sesión con OAuth2</td><td>OAuth2 API</td><td>Las URL y datos del cliente OAuth</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note tip"><p><strong>Predefined Credential Type</strong> es la opción más cómoda cuando el servicio ya tiene nodo pero le falta una operación. Por ejemplo: con tu credencial <em>Gmail OAuth2 API</em> puedes llamar a <code>https://gmail.googleapis.com/gmail/v1/users/me/profile</code> y n8n se encarga del token por ti.</p></div>
+    <h3>Import cURL</h3>
+    <p>La documentación de muchas API trae ejemplos con <code>curl</code>. En el nodo, pulsa <strong>Import cURL</strong>, pega el comando y <em>Import</em>: n8n rellena método, URL, cabeceras y cuerpo. Ojo: <strong>sobrescribe</strong> lo que tuvieras configurado, y si el comando trae la clave de API escrita, sácala a una credencial.</p>
+    <h3>De la respuesta a los items</h3>
+    <p>HTTP Request crea <strong>un item por respuesta</strong>. Con una excepción: si la API devuelve directamente una lista (<code>[ {...}, {...}, {...} ]</code>), cada elemento se convierte en un item. Muchas API envuelven la lista en un objeto (<code>{ "results": [ ... ] }</code>); en ese caso recibes un solo item y, si quieres trabajar elemento a elemento, añades un <em>Split Out</em> sobre ese campo.</p>
+    <p>Y recuerda lo del módulo 5: si al nodo le llegan 3 items, hace <strong>3 peticiones</strong>, una por item. Las <em>Options</em> que más usarás:</p>
+    <ul class="lines">
+      <li><code>Response</code><span><em>Include Response Headers and Status</em> te da también el código de estado y las cabeceras; <em>Never Error</em> hace que el nodo no se pare aunque la API responda con un error (útil para decidir tú qué hacer con un If).</span></li>
+      <li><code>Batching</code><span>Envía las peticiones por lotes con una pausa entre ellos (<em>Items per Batch</em>, <em>Batch Interval</em>), para no pasarte del límite de la API.</span></li>
+      <li><code>Pagination</code><span>Pide página tras página hasta tenerlo todo, actualizando un parámetro en cada petición o siguiendo la URL de la siguiente página.</span></li>
+      <li><code>Timeout</code><span>Cuánto esperar la respuesta antes de rendirse (por defecto, 10 segundos).</span></li>
+    </ul>
+    <h3>Cuando la API dice que no</h3>
+    <p>Si la respuesta tiene un código de error, n8n detiene el nodo y te muestra un mensaje según el código. Aprende a leerlos: te dicen dónde mirar.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Código</th><th>Mensaje de n8n</th><th>Qué suele significar</th></tr></thead>
+      <tbody>
+        <tr><td>400</td><td><em>Bad request - please check your parameters</em></td><td>Falta un parámetro o tiene un valor que la API no entiende.</td></tr>
+        <tr><td>401</td><td><em>Authorization failed - please check your credentials</em></td><td>No hay credencial, el token es incorrecto o va en el sitio equivocado.</td></tr>
+        <tr><td>403</td><td><em>Forbidden - perhaps check your credentials?</em></td><td>La credencial es válida, pero no tiene permiso para eso.</td></tr>
+        <tr><td>404</td><td><em>The resource you are requesting could not be found</em></td><td>La URL está mal escrita o el recurso no existe.</td></tr>
+        <tr><td>405</td><td><em>Method not allowed - please check you are using the right HTTP method</em></td><td>Has usado GET donde va POST, o al revés.</td></tr>
+        <tr><td>429</td><td><em>The service is receiving too many requests from you</em></td><td>Has superado el límite de peticiones: usa <em>Batching</em> o espera.</td></tr>
+        <tr><td>500</td><td><em>The service was not able to process your request</em></td><td>Fallo del servicio. Vuelve a intentarlo más tarde.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Debajo del mensaje, en los detalles del error, n8n muestra lo que respondió la API. Muchas veces ahí está la pista exacta.</p>
+
+    <h2 id="probador">Probador de HTTP Request y credenciales</h2>
+    <p>Configura el nodo, pulsa <strong>Execute step</strong> y mira qué petición envía n8n y qué responde la API. Prueba a llamar a <code>httpbin /bearer</code> sin credencial y luego con <em>Bearer Auth</em>, o a pedir productos a la API de ejemplo con la clave en el sitio equivocado.</p>
+    <div class="hook hsim" id="hsim">
+      <div class="hook-node">
+        <h4>HTTP Request · Parameters</h4>
+        <div class="hook-url" role="group" aria-label="Ejemplos">
+          <button type="button" data-ej="meteo">Open-Meteo</button><button type="button" data-ej="bearer">httpbin /bearer</button><button type="button" data-ej="headers">httpbin /headers</button><button type="button" data-ej="productos">API de ejemplo</button>
+        </div>
+        <div class="hs-two">
+          <div class="hook-f"><label for="hs-method">Method</label><select id="hs-method"><option>GET</option><option>POST</option></select></div>
+          <div class="hook-f"><label for="hs-auth">Authentication</label><select id="hs-auth"><option value="none">None</option><option value="generic">Generic Credential Type</option></select></div>
+        </div>
+        <div class="hook-f"><label for="hs-url">URL</label><input type="text" id="hs-url" spellcheck="false" autocomplete="off"></div>
+        <div class="hs-cred" id="hs-cred" hidden>
+          <div class="hook-f"><label for="hs-gtype">Generic Auth Type</label><select id="hs-gtype"><option value="httpBearerAuth">Bearer Auth</option><option value="httpHeaderAuth">Header Auth</option><option value="httpQueryAuth">Query Auth</option></select></div>
+          <p class="hs-cred-t">Credencial: <strong id="hs-cname"></strong></p>
+          <div id="hs-cfields"></div>
+        </div>
+        <label class="hook-sw"><input type="checkbox" id="hs-sendq"><span>Send Query Parameters</span></label>
+        <div id="hs-q"></div>
+        <h4>Options</h4>
+        <label class="hook-sw"><input type="checkbox" id="hs-full"><span>Include Response Headers and Status</span></label>
+        <label class="hook-sw"><input type="checkbox" id="hs-never"><span>Never Error</span></label>
+        <button class="btn sm" type="button" id="hs-run">Execute step</button>
+      </div>
+      <div class="hook-req">
+        <h4>Petición que envía n8n</h4>
+        <pre id="hs-reqtxt" aria-live="polite"></pre>
+        <details class="hook-cmd"><summary>Ver el nodo en el JSON del workflow</summary><pre id="hs-json"></pre></details>
+        <p class="hook-flow">Los secretos se muestran recortados. Fíjate en que el JSON del workflow solo guarda el nombre y el id de la credencial.</p>
+      </div>
+      <div class="hook-res">
+        <h4>Output <span class="hook-st" id="hs-st"></span></h4>
+        <pre id="hs-out" aria-live="polite">Pulsa «Execute step».</pre>
+        <p class="hook-msg" id="hs-msg"></p>
+      </div>
+    </div>
+    <div class="note info"><p>El probador no hace llamadas reales: imita las respuestas de Open-Meteo y httpbin.org (simplificadas) y de una API inventada, <code>api.ejemplo.com</code>, que pide la cabecera <code>X-API-Key: demo-123</code>. Los mensajes de error y la forma de la salida son los de n8n.</p></div>
+
+    <h2 id="practica">Práctica: parte del tiempo</h2>
+    <p>Vas a construir un workflow que pide la previsión del día a una API pública, prepara un resumen y lo envía por Telegram, lo guarda en una hoja de Google Sheets y, si quieres, te lo manda por email. Por el camino probarás una credencial genérica. Hazlo por partes: cada una funciona por sí sola.</p>
+    <div class="flows">
+      <p class="flows-t">Parte A · Pedir los datos</p><div class="flow" data-flujo="a"></div>
+      <p class="flows-t">Parte B · Una credencial genérica</p><div class="flow" data-flujo="b"></div>
+      <p class="flows-t">Partes C, D y E · Enviar y guardar (salen de «Preparar parte»)</p><div class="flow" data-flujo="cde"></div>
+    </div>
+    <h3>Parte A · HTTP Request sin credencial</h3>
+    <ol class="steps">
+      <li><strong>Crea el workflow</strong> «Parte del tiempo» con un <strong>Trigger manually</strong> llamado <strong>Al pulsar Ejecutar</strong>.</li>
+      <li><strong>La ciudad.</strong> Añade un <em>Edit Fields</em> llamado <strong>Ciudad</strong> con tres campos: <code>ciudad</code> (String) = <code>Madrid</code>, <code>latitud</code> (Number) = <code>40.42</code> y <code>longitud</code> (Number) = <code>-3.7</code>. Si quieres otra ciudad, busca sus coordenadas en un mapa.</li>
+      <li><strong>Pide el tiempo.</strong> Añade un <strong>HTTP Request</strong> llamado <strong>Pedir el tiempo</strong>: <em>Method</em> GET, <em>URL</em> <code>https://api.open-meteo.com/v1/forecast</code>, <em>Authentication</em> None. Activa <em>Send Query Parameters</em> y añade estos cinco (<em>Using Fields Below</em>):
+        <div class="scroll">
+        <table class="stack">
+          <thead><tr><th>Name</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td><code>latitude</code></td><td><code>{{ $json.latitud }}</code></td></tr>
+            <tr><td><code>longitude</code></td><td><code>{{ $json.longitud }}</code></td></tr>
+            <tr><td><code>daily</code></td><td><code>temperature_2m_max,temperature_2m_min,precipitation_probability_max</code></td></tr>
+            <tr><td><code>timezone</code></td><td><code>Europe/Madrid</code></td></tr>
+            <tr><td><code>forecast_days</code></td><td><code>1</code></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </li>
+      <li><strong>Ejecuta el paso.</strong> Recibes un item con <code>daily_units</code> y <code>daily</code>. Dentro de <code>daily</code>, cada dato es una lista con un solo valor (has pedido 1 día): <code>"temperature_2m_max": [14.2]</code>.</li>
+      <li><strong>Prepara el parte.</strong> Añade un <em>Edit Fields</em> llamado <strong>Preparar parte</strong> con estos campos:
+        <div class="code"><div class="h">Campos de «Preparar parte»<button class="copy" type="button">Copiar</button></div><pre><code><span class="k">fecha</span>   (String)  {{ $json.daily.time[0] }}
+<span class="k">ciudad</span>  (String)  {{ $('Ciudad').item.json.ciudad }}
+<span class="k">maxima</span>  (Number)  {{ $json.daily.temperature_2m_max[0] }}
+<span class="k">minima</span>  (Number)  {{ $json.daily.temperature_2m_min[0] }}
+<span class="k">lluvia</span>  (Number)  {{ $json.daily.precipitation_probability_max[0] }}
+<span class="k">mensaje</span> (String)  Hoy en {{ $('Ciudad').item.json.ciudad }}: entre {{ $json.daily.temperature_2m_min[0] }} y {{ $json.daily.temperature_2m_max[0] }} °C, con un {{ $json.daily.precipitation_probability_max[0] }} % de probabilidad de lluvia.</code></pre></div>
+        La ciudad no viene en la respuesta de la API: la recuperas del nodo «Ciudad» con <code>$('Ciudad')</code>, como en el módulo 5. Ejecuta el paso y comprueba el <code>mensaje</code>.</li>
+    </ol>
+    <h3>Parte B · Tu primera credencial genérica</h3>
+    <ol class="steps">
+      <li><strong>Sin credencial.</strong> Arrastra desde la salida de «Al pulsar Ejecutar» y añade otro <strong>HTTP Request</strong> llamado <strong>Probar Bearer</strong>, con URL <code>https://httpbin.org/bearer</code> y <em>Authentication</em> None. Ejecuta el paso: error <em>Authorization failed - please check your credentials</em>. Esta dirección de prueba solo responde si la petición lleva un token Bearer.</li>
+      <li><strong>Crea la credencial.</strong> Cambia <em>Authentication</em> a <strong>Generic Credential Type</strong> y <em>Generic Auth Type</em> a <strong>Bearer Auth</strong>. En el desplegable de credenciales elige <em>Create new credential</em>, escribe en <em>Bearer Token</em> <code>mi-token-de-prueba</code>, llama a la credencial «httpbin · prueba» y guarda.</li>
+      <li><strong>Vuelve a ejecutar.</strong> Ahora la respuesta es <code>{ "authenticated": true, "token": "mi-token-de-prueba" }</code>. httpbin te devuelve el token para que veas que n8n lo ha enviado en la cabecera <code>Authorization</code>.</li>
+      <li><strong>Comprueba que el secreto no está en el workflow.</strong> Selecciona el nodo «Probar Bearer», cópialo (<kbd>Ctrl</kbd> + <kbd>C</kbd>) y pégalo en un editor de texto. Verás <code>"credentials": { "httpBearerAuth": { "id": "…", "name": "httpbin · prueba" } }</code>, pero ni rastro de <code>mi-token-de-prueba</code>.</li>
+    </ol>
+    <h3>Parte C · Telegram</h3>
+    <ol class="steps">
+      <li><strong>Prepara el bot.</strong> Crea el bot con BotFather, la credencial <em>Telegram API</em> y consigue tu Chat ID, como se explica en la <a href="#telegram">sección de Telegram</a>.</li>
+      <li><strong>Añade el nodo.</strong> Detrás de «Preparar parte», añade un nodo <strong>Telegram</strong> → <em>Send a text message</em> y llámalo <strong>Enviar a Telegram</strong>. Elige tu credencial y escribe tu <em>Chat ID</em>.</li>
+      <li><strong>El texto.</strong> En <em>Text</em> escribe <code>&lt;b&gt;Parte del tiempo&lt;/b&gt;</code>, pulsa <kbd>Intro</kbd> para cambiar de línea y arrastra el campo <code>mensaje</code> (queda <code>{{ $json.mensaje }}</code>). En <em>Additional Fields</em> añade <em>Parse Mode</em> = <strong>HTML</strong> y <em>Append n8n Attribution</em> desactivado.</li>
+      <li><strong>Ejecuta el paso.</strong> El mensaje llega a tu móvil con el título en negrita. La salida del nodo es la respuesta de Telegram: <code>ok: true</code> y, en <code>result</code>, el <code>message_id</code> y el chat.</li>
+    </ol>
+    <h3>Parte D · Google Sheets</h3>
+    <ol class="steps">
+      <li><strong>Prepara la hoja.</strong> En Google Drive crea una hoja de cálculo llamada «Parte del tiempo» y escribe en la fila 1, de la A a la E: <code>fecha</code>, <code>ciudad</code>, <code>maxima</code>, <code>minima</code>, <code>lluvia</code>.</li>
+      <li><strong>Conecta Google.</strong> Sigue los pasos de la <a href="#google">sección de Google</a> y crea la credencial <em>Google Sheets OAuth2 API</em> (recuerda activar Google Sheets API y Google Drive API).</li>
+      <li><strong>Añade el nodo.</strong> Desde la salida de «Preparar parte» (una segunda conexión, igual que en el módulo 7), añade un <strong>Google Sheets</strong> → <em>Append row in sheet</em> y llámalo <strong>Guardar en Sheets</strong>. <em>Document</em>: <em>From list</em> → «Parte del tiempo». <em>Sheet</em>: la primera pestaña.</li>
+      <li><strong>Mapea las columnas.</strong> Deja <em>Mapping Column Mode</em> en <strong>Map Each Column Manually</strong>. n8n lee la fila 1 y te muestra las cinco columnas: arrastra a cada una el campo del mismo nombre desde el panel <em>Input</em>. El campo <code>mensaje</code> no tiene columna y no se guarda.</li>
+      <li><strong>Ejecuta el paso</strong> y abre la hoja: hay una fila nueva con la previsión de hoy. Cada vez que ejecutes el workflow se añadirá otra.</li>
+    </ol>
+    <h3>Parte E (opcional) · Gmail</h3>
+    <ol class="steps">
+      <li><strong>Activa Gmail API</strong> en el mismo proyecto de Google Cloud y crea una credencial <em>Gmail OAuth2 API</em> con el mismo Client ID y Client Secret.</li>
+      <li><strong>Añade el nodo.</strong> Otra conexión desde «Preparar parte»: <strong>Gmail</strong> → <em>Send a message</em>, llamado <strong>Enviar por email</strong>. <em>To</em>: tu email. <em>Subject</em>: <code>Parte del tiempo · {{ $json.ciudad }}</code>. <em>Email Type</em>: <em>Text</em>. <em>Message</em>: <code>{{ $json.mensaje }}</code>. En <em>Options</em>, desactiva <em>Append n8n Attribution</em>.</li>
+      <li><strong>Ejecuta el workflow completo</strong> con <em>Execute workflow</em>. En unos segundos tendrás el parte en Telegram, una fila nueva en la hoja y un correo en tu bandeja.</li>
+    </ol>
+    <div class="note tip"><p>¿Quieres recibirlo cada mañana? Cambia el Manual Trigger por un <em>Schedule Trigger</em> (módulo 6) y publica el workflow. Las credenciales funcionan igual en las ejecuciones de producción.</p></div>
+
+    <h2 id="solucion">Solución</h2>
+    <p>Copia y pega este workflow en un lienzo vacío para comparar con el tuyo. Al pegarlo, los nodos con servicios externos aparecen con un aviso: abre cada uno y elige <strong>tu</strong> credencial (el JSON no las incluye), tu <em>Chat ID</em>, tu hoja y tu email.</p>
+    <div class="code"><div class="h">Workflow «Parte del tiempo» (JSON para pegar en el lienzo)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0001",
+      "name": "Al pulsar Ejecutar"
+    },
+    {
+      "parameters": {
+        "assignments": { "assignments": [
+          {"id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0101", "name": "ciudad", "value": "Madrid", "type": "string"},
+          {"id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0102", "name": "latitud", "value": 40.42, "type": "number"},
+          {"id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0103", "name": "longitud", "value": -3.7, "type": "number"}
+        ] },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0002",
+      "name": "Ciudad"
+    },
+    {
+      "parameters": {
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [
+          {"name": "latitude", "value": "={{ $json.latitud }}"},
+          {"name": "longitude", "value": "={{ $json.longitud }}"},
+          {"name": "daily", "value": "temperature_2m_max,temperature_2m_min,precipitation_probability_max"},
+          {"name": "timezone", "value": "Europe/Madrid"},
+          {"name": "forecast_days", "value": "1"}
+        ] },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [440, 0],
+      "id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0003",
+      "name": "Pedir el tiempo"
+    },
+    {
+      "parameters": {
+        "assignments": { "assignments": [
+          {"id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0201", "name": "fecha", "value": "={{ $json.daily.time[0] }}", "type": "string"},
+          {"id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0202", "name": "ciudad", "value": "={{ $('Ciudad').item.json.ciudad }}", "type": "string"},
+          {"id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0203", "name": "maxima", "value": "={{ $json.daily.temperature_2m_max[0] }}", "type": "number"},
+          {"id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0204", "name": "minima", "value": "={{ $json.daily.temperature_2m_min[0] }}", "type": "number"},
+          {"id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0205", "name": "lluvia", "value": "={{ $json.daily.precipitation_probability_max[0] }}", "type": "number"},
+          {"id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0206", "name": "mensaje", "value": "=Hoy en {{ $('Ciudad').item.json.ciudad }}: entre {{ $json.daily.temperature_2m_min[0] }} y {{ $json.daily.temperature_2m_max[0] }} °C, con un {{ $json.daily.precipitation_probability_max[0] }} % de probabilidad de lluvia.", "type": "string"}
+        ] },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [660, 0],
+      "id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0004",
+      "name": "Preparar parte"
+    },
+    {
+      "parameters": {
+        "chatId": "TU_CHAT_ID",
+        "text": "=&lt;b&gt;Parte del tiempo&lt;/b&gt;\n{{ $json.mensaje }}",
+        "additionalFields": {"appendAttribution": false, "parse_mode": "HTML"}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, -180],
+      "id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0005",
+      "name": "Enviar a Telegram",
+      "webhookId": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f9001"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {"__rl": true, "value": "", "mode": "list"},
+        "sheetName": {"__rl": true, "value": "", "mode": "list"},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha": "={{ $json.fecha }}",
+            "ciudad": "={{ $json.ciudad }}",
+            "maxima": "={{ $json.maxima }}",
+            "minima": "={{ $json.minima }}",
+            "lluvia": "={{ $json.lluvia }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {"id": "fecha", "displayName": "fecha", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "ciudad", "displayName": "ciudad", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "maxima", "displayName": "maxima", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "minima", "displayName": "minima", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "lluvia", "displayName": "lluvia", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [900, 0],
+      "id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0006",
+      "name": "Guardar en Sheets"
+    },
+    {
+      "parameters": {
+        "sendTo": "tu-correo@ejemplo.com",
+        "subject": "=Parte del tiempo · {{ $json.ciudad }}",
+        "emailType": "text",
+        "message": "={{ $json.mensaje }}",
+        "options": {"appendAttribution": false}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [900, 180],
+      "id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0007",
+      "name": "Enviar por email",
+      "webhookId": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f9002"
+    },
+    {
+      "parameters": {
+        "url": "https://httpbin.org/bearer",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [220, 240],
+      "id": "e8c1a2b3-4d5e-4f60-9a7b-8c9d0e1f0008",
+      "name": "Probar Bearer"
+    }
+  ],
+  "connections": {
+    "Al pulsar Ejecutar": {"main": [[{"node": "Ciudad", "type": "main", "index": 0}, {"node": "Probar Bearer", "type": "main", "index": 0}]]},
+    "Ciudad": {"main": [[{"node": "Pedir el tiempo", "type": "main", "index": 0}]]},
+    "Pedir el tiempo": {"main": [[{"node": "Preparar parte", "type": "main", "index": 0}]]},
+    "Preparar parte": {"main": [[{"node": "Enviar a Telegram", "type": "main", "index": 0}, {"node": "Guardar en Sheets", "type": "main", "index": 0}, {"node": "Enviar por email", "type": "main", "index": 0}]]}
+  }
+}</code></pre></div>
+    <p>En «Guardar en Sheets» tendrás que volver a elegir el documento y la pestaña: n8n leerá de nuevo la fila 1 y recuperará el mapeo de las cinco columnas.</p>
+
+    <h2 id="problemas">Problemas frecuentes</h2>
+    <div class="faq">
+      <details><summary>«Authorization failed - please check your credentials» (401)</summary><div><p>La API no ha aceptado la identificación. Comprueba, por este orden: que el nodo tiene una credencial elegida, que el token está bien copiado (sin espacios al principio o al final) y que es el tipo correcto. Muchas API piden la clave en una cabecera concreta: si usas <em>Bearer Auth</em> y la API espera <code>X-API-Key</code>, también falla.</p></div></details>
+      <details><summary>Google: «redirect_uri_mismatch»</summary><div><p>La dirección en <em>Authorized redirect URIs</em> de Google Cloud no es exactamente la <em>OAuth Redirect URL</em> de n8n. Cópiala de nuevo desde la credencial: tiene que coincidir el protocolo (<code>http</code> o <code>https</code>), el puerto (<code>5678</code>) y la ruta completa.</p></div></details>
+      <details><summary>Google: «Access blocked» o «app not verified» al iniciar sesión</summary><div><p>Tu cuenta no está en la lista de usuarios de prueba. En Google Cloud, en <em>Audience → Test users</em>, añade la cuenta con la que te conectas. El aviso «Google hasn't verified this app» es normal en tu propia app: puedes continuar.</p></div></details>
+      <details><summary>Un workflow de Google funcionaba y a la semana falla</summary><div><p>La app de Google Cloud está en modo <em>Testing</em> y el permiso caduca a los 7 días. Abre la credencial y pulsa <em>Reconnect</em> (o vuelve a iniciar sesión). Para que no vuelva a pasar, pasa la app a producción.</p></div></details>
+      <details><summary>Telegram: «chat not found» o «bot can't initiate conversation with a user»</summary><div><p>El bot no puede escribir a quien no le ha escrito antes. Abre el chat con tu bot, envíale <code>/start</code> y revisa el <em>Chat ID</em> (en los grupos empieza por <code>-</code>). Si cambiaste de bot, el Chat ID sigue siendo el tuyo, pero tienes que escribir también al bot nuevo.</p></div></details>
+      <details><summary>Telegram: «can't parse entities»</summary><div><p>Telegram no ha entendido el formato del texto. Sin <em>Parse Mode</em>, n8n usa Markdown, y un <code>_</code> o un <code>*</code> sueltos lo rompen. Elige <em>Parse Mode</em> = <em>HTML</em>; si tu texto lleva <code>&lt;</code> o <code>&amp;</code>, escríbelos como <code>&amp;lt;</code> y <code>&amp;amp;</code>.</p></div></details>
+      <details><summary>Google Sheets no muestra las columnas o crea columnas nuevas</summary><div><p>Si no aparecen las columnas, revisa que la fila 1 tiene los nombres y que has elegido la pestaña correcta (también puedes recargarlas desde el menú del campo <em>Columns</em>). Si aparecen columnas nuevas como <code>mensaje</code>, estás en <em>Map Automatically</em>: cambia a <em>Map Each Column Manually</em>.</p></div></details>
+    </div>
+
+    <h2 id="retos">Retos para practicar</h2>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Reto 1 · Tres ciudades</h3><p style="margin:0">Cambia «Ciudad» por una lista de tres ciudades (modo JSON + Split Out). ¿Cuántas peticiones hace «Pedir el tiempo»? ¿Cuántos mensajes y filas obtienes?</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 2 · Cada mañana</h3><p style="margin:0">Haz que el parte llegue a las 7:30 de lunes a viernes y publica el workflow. Comprueba la ejecución en la pestaña <em>Executions</em>.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 3 · Header Auth</h3><p style="margin:0">Llama a <code>https://httpbin.org/headers</code> con una credencial <em>Header Auth</em> (<code>X-API-Key</code> = <code>demo-123</code>) y busca tu cabecera en la respuesta.</p></div>
+    </div>
+    <details class="term"><summary><i>?</i>Ver las soluciones</summary>
+      <div class="code"><div class="h">Soluciones de los retos<button class="copy" type="button">Copiar</button></div><pre><code><span class="c">// Reto 1 · «Ciudad» en modo JSON</span>
+{ "ciudades": [
+  { "ciudad": "Madrid", "latitud": 40.42, "longitud": -3.7 },
+  { "ciudad": "Sevilla", "latitud": 37.39, "longitud": -5.98 },
+  { "ciudad": "Bilbao", "latitud": 43.26, "longitud": -2.93 }
+] }
+<span class="c">// Detrás, un Split Out «Separar ciudades» (Fields To Split Out: ciudades)</span>
+<span class="c">// En «Preparar parte», cambia $('Ciudad') por $('Separar ciudades')</span>
+<span class="c">// Resultado: 3 peticiones, 3 mensajes de Telegram, 3 filas y 3 correos</span>
+
+<span class="c">// Reto 2 · Schedule Trigger en lugar del Manual Trigger</span>
+<span class="c">// Trigger Interval: Custom (Cron) · Expression: 30 7 * * 1-5</span>
+<span class="c">// Después: Publish (Shift + P)</span>
+
+<span class="c">// Reto 3 · HTTP Request</span>
+<span class="c">// URL: https://httpbin.org/headers · Authentication: Generic Credential Type</span>
+<span class="c">// Generic Auth Type: Header Auth · Name: X-API-Key · Value: demo-123</span>
+<span class="c">// En la respuesta, dentro de headers, aparece "X-Api-Key": "demo-123"</span></code></pre></div>
+    </details>
+
+    <h3>Comprueba tu práctica</h3>
+    <ul class="check" id="checklist" data-ok="¡Muy bien! Tus workflows ya hablan con el mundo exterior.">
+      <li><label><input type="checkbox"><span>Sé qué es una credencial y por qué el token no aparece en el JSON del workflow</span></label></li>
+      <li><label><input type="checkbox"><span>He llamado a una API pública con HTTP Request y parámetros de query</span></label></li>
+      <li><label><input type="checkbox"><span>He creado una credencial genérica (Bearer Auth) y he visto la diferencia entre un 401 y una respuesta correcta</span></label></li>
+      <li><label><input type="checkbox"><span>He creado un bot con BotFather y le he enviado un mensaje desde n8n</span></label></li>
+      <li><label><input type="checkbox"><span>He creado un cliente OAuth en Google Cloud y he conectado una credencial de Google</span></label></li>
+      <li><label><input type="checkbox"><span>He añadido filas a Google Sheets mapeando las columnas a mano</span></label></li>
+      <li><label><input type="checkbox"><span>Sé leer los mensajes de error de HTTP Request (400, 401, 403, 404, 429)</span></label></li>
+    </ul>
+    <p class="check-msg" id="check-msg" aria-live="polite"></p>
+
+    <h2 id="test">Comprueba lo que has aprendido</h2>
+    <div id="quiz" class="quiz"></div>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="07-logica.html">← Módulo 7: Lógica y bucles</a>
+      <a class="btn" href="09-nodo-code.html">Módulo 9: El nodo Code →</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Basado en la <a href="https://docs.n8n.io/">documentación oficial</a> de n8n 2.x · Revisado en noviembre de 2026</footer>
+
+<script>
+window.FLUJOS = {
+  oauth: [
+    { tipo: 'trig', ico: '1', t: 'Tú, en n8n', d: 'Sign in with Google' },
+    { ico: '2', t: 'Google', d: 'Inicias sesión y das permiso' },
+    { ico: '3', t: 'Redirect URL', d: 'Google vuelve a n8n con un código' },
+    { ico: '4', t: 'n8n', d: 'Guarda el token y lo renueva' }
+  ],
+  a: [
+    { tipo: 'trig', ico: '▶', t: 'Al pulsar Ejecutar', d: 'Manual Trigger' },
+    { ico: '✎', t: 'Ciudad', d: 'Nombre y coordenadas' },
+    { ico: '⇅', t: 'Pedir el tiempo', d: 'HTTP Request · Open-Meteo' },
+    { ico: '✎', t: 'Preparar parte', d: 'Edit Fields · mensaje' }
+  ],
+  b: [
+    { tipo: 'trig', ico: '▶', t: 'Al pulsar Ejecutar', d: '2.ª conexión' },
+    { ico: '⇅', t: 'Probar Bearer', d: 'HTTP Request · Bearer Auth' }
+  ],
+  cde: [
+    { ico: '✎', t: 'Preparar parte', d: '1 item' },
+    { ico: 'TG', t: 'Enviar a Telegram', d: 'Telegram API' },
+    { ico: '▦', t: 'Guardar en Sheets', d: 'Google Sheets OAuth2' },
+    { ico: '@', t: 'Enviar por email', d: 'Gmail OAuth2 · opcional' }
+  ]
+};
+window.QUIZ = [
+  { p: 'Exportas un workflow que usa tu bot de Telegram y se lo pasas a un compañero. ¿Qué viaja en el JSON?', o: ['El token del bot, cifrado', 'Solo el id y el nombre de la credencial, sin el token', 'El token en texto plano'], c: 1, e: 'Las credenciales se guardan aparte, cifradas. El nodo solo guarda una referencia (id y nombre); tu compañero tendrá que elegir o crear su propia credencial.' },
+  { p: 'Un HTTP Request se detiene con «Authorization failed - please check your credentials». ¿Qué ha respondido la API?', o: ['Un 401: falta la identificación o no es válida', 'Un 404: la URL no existe', 'Un 500: el servicio ha fallado'], c: 0, e: 'n8n traduce el código 401 a ese mensaje. Revisa que haya credencial, que el token sea correcto y que sea el tipo que pide la API.' },
+  { p: 'Al pulsar «Sign in with Google», Google muestra «redirect_uri_mismatch». ¿Qué falla?', o: ['La Gmail API no está activada', 'La dirección autorizada en Google Cloud no coincide exactamente con la OAuth Redirect URL de n8n', 'Tu cuenta no tiene Gmail'], c: 1, e: 'Google solo devuelve el permiso a direcciones autorizadas. Copia la OAuth Redirect URL de la credencial y pégala tal cual en Authorized redirect URIs.' },
+  { p: 'Una API responde [ {"id":1}, {"id":2}, {"id":3} ]. ¿Cuántos items saca el nodo HTTP Request?', o: ['1 item con una lista dentro', '3 items, uno por elemento', 'Ninguno: hay que añadir un Split Out para que funcione'], c: 1, e: 'Si la respuesta es directamente una lista, HTTP Request crea un item por elemento. Si la lista viene dentro de un objeto ({ "results": [...] }), sale un solo item y entonces sí te hace falta un Split Out.' },
+  { p: 'Necesitas una operación de Gmail que el nodo Gmail no tiene. ¿Cuál es la forma más cómoda?', o: ['HTTP Request con Predefined Credential Type y tu credencial de Gmail', 'HTTP Request con el token de Google pegado en una cabecera', 'No se puede hacer con n8n'], c: 0, e: 'Con Predefined Credential Type reutilizas la credencial que ya tienes y n8n se encarga del token y de renovarlo. Nunca pegues tokens en los parámetros.' },
+  { p: 'El nodo Telegram falla con «Forbidden: bot can\'t initiate conversation with a user». ¿Qué haces?', o: ['Crear otro bot', 'Abrir el chat con tu bot y enviarle un mensaje (por ejemplo /start)', 'Activar Append n8n Attribution'], c: 1, e: 'En Telegram un bot no puede escribir primero. En cuanto le envías un mensaje, ya puede contestarte en ese chat.' }
+];
+</script>
+<script src="../js/main.js"></script>
+<script>
+{
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const $h = id => document.getElementById(id);
+
+  /* ===== Probador de HTTP Request y credenciales ===== */
+  const MENSAJES = {
+    400: 'Bad request - please check your parameters',
+    401: 'Authorization failed - please check your credentials',
+    403: 'Forbidden - perhaps check your credentials?',
+    404: 'The resource you are requesting could not be found',
+    405: 'Method not allowed - please check you are using the right HTTP method'
+  };
+  const ESTADO = { 200: 'OK', 400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden', 404: 'Not Found', 405: 'Method Not Allowed' };
+  const CREDS = {
+    httpBearerAuth: { id: '7', name: 'httpbin · prueba', campos: [['token', 'Bearer Token', 'mi-token-de-prueba']] },
+    httpHeaderAuth: { id: '8', name: 'API de ejemplo · clave', campos: [['name', 'Name', 'X-API-Key'], ['value', 'Value', 'demo-123']] },
+    httpQueryAuth: { id: '9', name: 'Clave en la URL', campos: [['name', 'Name', 'api_key'], ['value', 'Value', 'demo-123']] }
+  };
+  const valores = {};
+  Object.entries(CREDS).forEach(([t, c]) => { valores[t] = {}; c.campos.forEach(([k, , v]) => { valores[t][k] = v; }); });
+
+  const EJEMPLOS = {
+    meteo: { method: 'GET', url: 'https://api.open-meteo.com/v1/forecast', auth: 'none', sendq: true, q: [['latitude', '40.42'], ['longitude', '-3.7'], ['daily', 'temperature_2m_max,temperature_2m_min,precipitation_probability_max'], ['timezone', 'Europe/Madrid'], ['forecast_days', '1']] },
+    bearer: { method: 'GET', url: 'https://httpbin.org/bearer', auth: 'none', sendq: false, q: [['', '']] },
+    headers: { method: 'GET', url: 'https://httpbin.org/headers', auth: 'generic', gtype: 'httpHeaderAuth', sendq: false, q: [['', '']] },
+    productos: { method: 'GET', url: 'https://api.ejemplo.com/v1/productos', auth: 'none', sendq: true, q: [['limite', '3']] }
+  };
+  const st = { method: 'GET', url: '', auth: 'none', gtype: 'httpBearerAuth', sendq: false, q: [], full: false, never: false, ej: '' };
+
+  const tapar = v => { v = String(v); return v.length <= 4 ? '••••' : v.slice(0, 4) + '•'.repeat(Math.min(8, v.length - 4)); };
+  const tituloCab = n => n.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join('-');
+
+  const pintarNodo = () => {
+    $h('hs-method').value = st.method;
+    $h('hs-auth').value = st.auth;
+    $h('hs-url').value = st.url;
+    $h('hs-gtype').value = st.gtype;
+    $h('hs-sendq').checked = st.sendq;
+    $h('hs-full').checked = st.full;
+    $h('hs-never').checked = st.never;
+    $h('hs-cred').hidden = st.auth !== 'generic';
+    const c = CREDS[st.gtype];
+    $h('hs-cname').textContent = c.name;
+    $h('hs-cfields').innerHTML = c.campos.map(([k, l]) =>
+      `<div class="hook-f"><label for="hs-c-${k}">${l}</label><input type="text" id="hs-c-${k}" data-cred="${k}" value="${esc(valores[st.gtype][k])}" spellcheck="false" autocomplete="off"></div>`).join('');
+    const qEl = $h('hs-q');
+    qEl.hidden = !st.sendq;
+    qEl.innerHTML = st.sendq ? st.q.map(([n, v], i) =>
+      `<div class="hs-qrow"><input type="text" data-q="${i}" data-p="0" value="${esc(n)}" aria-label="Name del parámetro ${i + 1}" placeholder="Name"><input type="text" data-q="${i}" data-p="1" value="${esc(v)}" aria-label="Value del parámetro ${i + 1}" placeholder="Value"></div>`).join('') +
+      `<div class="sim-btns"><button class="btn sm ghost" type="button" id="hs-addq"${st.q.length >= 6 ? ' disabled' : ''}>+ Add Parameter</button><button class="btn sm ghost" type="button" id="hs-delq"${st.q.length <= 1 ? ' disabled' : ''}>Quitar el último</button></div>` : '';
+    document.querySelectorAll('#hsim [data-ej]').forEach(b => b.setAttribute('aria-pressed', b.dataset.ej === st.ej));
+  };
+
+  /* Construye la petición como la enviaría n8n */
+  const construir = () => {
+    let u;
+    try { u = new URL(st.url.trim()); } catch (e) { return { error: 'url' }; }
+    if (!/^https?:$/.test(u.protocol)) return { error: 'url' };
+    if (st.sendq) st.q.forEach(([n, v]) => { if (n.trim()) u.searchParams.append(n.trim(), v); });
+    const cab = [], tapadas = [];
+    if (st.auth === 'generic') {
+      const v = valores[st.gtype];
+      if (st.gtype === 'httpBearerAuth') { cab.push(['Authorization', 'Bearer ' + v.token]); tapadas.push(['Authorization', 'Bearer ' + tapar(v.token)]); }
+      if (st.gtype === 'httpHeaderAuth' && v.name.trim()) { cab.push([v.name.trim(), v.value]); tapadas.push([v.name.trim(), tapar(v.value)]); }
+      if (st.gtype === 'httpQueryAuth' && v.name.trim()) u.searchParams.append(v.name.trim(), v.value);
+    }
+    let visible = u.toString();
+    if (st.auth === 'generic' && st.gtype === 'httpQueryAuth') {
+      const n = valores.httpQueryAuth.name.trim();
+      if (n) { const u2 = new URL(u); u2.searchParams.set(n, tapar(valores.httpQueryAuth.value)); visible = u2.toString(); }
+    }
+    try { visible = decodeURIComponent(visible); } catch (e) { /* se deja codificada */ }
+    return { u, cab, tapadas, visible };
+  };
+
+  /* Respuestas simuladas */
+  const hoy = new Date();
+  const dia = n => { const d = new Date(hoy); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const responder = (req) => {
+    const { u, cab } = req;
+    const h = Object.fromEntries(cab.map(([k, v]) => [k.toLowerCase(), v]));
+    const p = u.pathname.replace(/\/+$/, '');
+    const json = (code, body, extra) => ({ code, body, tipo: 'application/json', ...extra });
+    if (u.hostname === 'api.open-meteo.com' && p === '/v1/forecast') {
+      if (st.method !== 'GET') return json(405, { error: true, reason: 'Method not allowed' });
+      const lat = u.searchParams.get('latitude'), lon = u.searchParams.get('longitude');
+      if (lat === null || lon === null) return json(400, { error: true, reason: "Parameter 'latitude' and 'longitude' are required" });
+      if (Number.isNaN(Number(lat)) || Number.isNaN(Number(lon)) || lat.trim() === '' || lon.trim() === '') return json(400, { error: true, reason: 'Latitude and longitude must be numbers' });
+      const daily = (u.searchParams.get('daily') || '').split(',').map(s => s.trim()).filter(Boolean);
+      const tz = u.searchParams.get('timezone');
+      const body = { latitude: Math.round(Number(lat) * 100) / 100, longitude: Math.round(Number(lon) * 100) / 100, generationtime_ms: 0.08, utc_offset_seconds: tz ? 3600 : 0, timezone: tz || 'GMT', elevation: 667 };
+      if (daily.length) {
+        if (!tz) return json(400, { error: true, reason: "Parameter 'timezone' is required when daily variables are requested" });
+        const validas = { temperature_2m_max: ['°C', [14.2, 12.8, 11.5]], temperature_2m_min: ['°C', [4.1, 3.6, 2.9]], precipitation_probability_max: ['%', [20, 65, 80]], weather_code: ['wmo code', [3, 61, 63]] };
+        const mala = daily.find(d => !validas[d]);
+        if (mala) return json(400, { error: true, reason: `Cannot initialize WeatherVariable from invalid String value ${mala}` });
+        const n = Math.min(3, Math.max(1, parseInt(u.searchParams.get('forecast_days') || '7', 10) || 7));
+        body.daily_units = { time: 'iso8601' };
+        body.daily = { time: Array.from({ length: n }, (_, i) => dia(i)) };
+        daily.forEach(d => { body.daily_units[d] = validas[d][0]; body.daily[d] = validas[d][1].slice(0, n); });
+        if (n < parseInt(u.searchParams.get('forecast_days') || '7', 10)) body._nota = 'El probador solo simula 3 días';
+      }
+      return json(200, body);
+    }
+    if (u.hostname === 'httpbin.org' && p === '/bearer') {
+      if (st.method !== 'GET') return { code: 405, body: '', tipo: 'text/html' };
+      const a = h.authorization || '';
+      if (!/^Bearer\s+\S/.test(a)) return { code: 401, body: '', tipo: 'text/html', cab: { 'www-authenticate': 'Bearer' } };
+      return json(200, { authenticated: true, token: a.replace(/^Bearer\s+/, '') });
+    }
+    if (u.hostname === 'httpbin.org' && p === '/headers') {
+      if (st.method !== 'GET') return { code: 405, body: '', tipo: 'text/html' };
+      const enviadas = { Host: 'httpbin.org' };
+      cab.forEach(([k, v]) => { enviadas[tituloCab(k)] = v; });
+      return json(200, { headers: enviadas });
+    }
+    if (u.hostname === 'api.ejemplo.com' && p === '/v1/productos') {
+      if (st.method !== 'GET') return json(405, { error: 'Usa GET para leer productos' });
+      if (!('x-api-key' in h)) return json(401, { error: 'Falta la cabecera X-API-Key' });
+      if (h['x-api-key'] !== 'demo-123') return json(403, { error: 'Clave de API no válida' });
+      const todos = [
+        { id: 1, nombre: 'Taza n8n', precio: 9.9 },
+        { id: 2, nombre: 'Camiseta', precio: 19.5 },
+        { id: 3, nombre: 'Pegatinas', precio: 3 },
+        { id: 4, nombre: 'Libreta', precio: 6.75 },
+        { id: 5, nombre: 'Sudadera', precio: 39 }
+      ];
+      const lim = parseInt(u.searchParams.get('limite') || '5', 10);
+      return json(200, todos.slice(0, Number.isNaN(lim) ? 5 : Math.max(0, lim)));
+    }
+    return json(404, { error: 'Not Found' });
+  };
+
+  const pista = (req, r) => {
+    const host = req.u.hostname, path = req.u.pathname;
+    if (r.code === 401 && host === 'httpbin.org') return ['bad', 'httpbin /bearer exige la cabecera Authorization: Bearer …. Elige Generic Credential Type → Bearer Auth.'];
+    if (r.code === 401 && host === 'api.ejemplo.com') return ['bad', st.auth === 'generic' && st.gtype !== 'httpHeaderAuth' ? 'La credencial se envía, pero no donde la API la espera: esta API pide la cabecera X-API-Key. Usa Header Auth.' : 'Esta API pide la cabecera X-API-Key. Elige Generic Credential Type → Header Auth.'];
+    if (r.code === 403) return ['bad', 'La cabecera llega, pero la clave no es válida. Revisa el valor de la credencial (la buena es demo-123).'];
+    if (r.code === 404) return ['bad', 'Esa dirección no existe en el probador. Comprueba la URL o elige un ejemplo.'];
+    if (r.code === 405) return ['bad', 'Este recurso solo admite GET.'];
+    if (r.code === 400) return ['bad', 'Revisa los parámetros de query: la respuesta de la API explica qué falta.'];
+    if (Array.isArray(r.body)) return ['ok', `La respuesta es una lista: n8n crea un item por elemento (${r.body.length} item${r.body.length === 1 ? '' : 's'}).`];
+    if (host === 'httpbin.org' && path.startsWith('/headers')) return ['ok', 'httpbin te devuelve las cabeceras que ha recibido: ahí está la que ha añadido la credencial.'];
+    if (host === 'httpbin.org') return ['ok', 'La credencial ha añadido la cabecera Authorization y httpbin la acepta.'];
+    return ['ok', 'La respuesta es un objeto: n8n crea un solo item.'];
+  };
+
+  const pintarPeticion = () => {
+    const req = construir();
+    const jn = { parameters: { url: st.url } };
+    if (st.method !== 'GET') jn.parameters = { method: st.method, ...jn.parameters };
+    if (st.auth === 'generic') { jn.parameters.authentication = 'genericCredentialType'; jn.parameters.genericAuthType = st.gtype; }
+    if (st.sendq) { jn.parameters.sendQuery = true; jn.parameters.queryParameters = { parameters: st.q.filter(([n]) => n.trim()).map(([name, value]) => ({ name, value })) }; }
+    const opts = {};
+    if (st.full || st.never) opts.response = { response: { ...(st.full ? { fullResponse: true } : {}), ...(st.never ? { neverError: true } : {}) } };
+    jn.parameters.options = opts;
+    jn.type = 'n8n-nodes-base.httpRequest'; jn.typeVersion = 4.5; jn.name = 'HTTP Request';
+    if (st.auth === 'generic') jn.credentials = { [st.gtype]: { id: CREDS[st.gtype].id, name: CREDS[st.gtype].name } };
+    $h('hs-json').textContent = JSON.stringify(jn, null, 2);
+    if (req.error) { $h('hs-reqtxt').textContent = 'La URL no es válida: tiene que empezar por https:// (o http://).'; return req; }
+    const lineas = [`${st.method} ${req.visible}`, ...req.tapadas.map(([k, v]) => `${k}: ${v}`)];
+    if (!req.tapadas.length) lineas.push(st.auth === 'none' ? '(sin cabeceras de autenticación)' : '(la credencial no añade cabeceras)');
+    $h('hs-reqtxt').textContent = lineas.join('\n');
+    return req;
+  };
+
+  const ejecutar = () => {
+    const req = pintarPeticion();
+    const out = $h('hs-out'), stEl = $h('hs-st'), msg = $h('hs-msg');
+    document.getElementById('hsim').classList.remove('fail');
+    if (req.error) {
+      stEl.textContent = 'Error'; stEl.className = 'hook-st bad';
+      out.textContent = 'Invalid URL';
+      msg.textContent = 'Escribe una dirección completa, con https://.'; msg.className = 'hook-msg bad';
+      document.getElementById('hsim').classList.add('fail');
+      return;
+    }
+    const r = responder(req);
+    const ok = r.code >= 200 && r.code < 300;
+    const [cls, texto] = pista(req, r);
+    if (!ok && !st.never) {
+      stEl.textContent = 'Error'; stEl.className = 'hook-st bad';
+      const cuerpo = typeof r.body === 'string' ? JSON.stringify(r.body) : JSON.stringify(r.body);
+      out.textContent = `${MENSAJES[r.code] || 'Your request is invalid or could not be processed by the service'}\n\nError details\n  Error code: ${r.code}\n  Full message: ${r.code} - ${cuerpo}`;
+      msg.textContent = texto; msg.className = 'hook-msg ' + cls;
+      document.getElementById('hsim').classList.add('fail');
+      return;
+    }
+    let items;
+    const cabResp = { 'content-type': r.tipo + (r.tipo.includes('json') ? '; charset=utf-8' : '; charset=utf-8'), ...(r.cab || {}) };
+    if (st.full) {
+      const it = {};
+      if (r.tipo.includes('json')) it.body = r.body; else it.data = r.body;
+      it.headers = cabResp; it.statusCode = r.code; it.statusMessage = ESTADO[r.code] || '';
+      items = [it];
+    } else if (Array.isArray(r.body)) items = r.body;
+    else if (typeof r.body === 'string') items = [{ data: r.body }];
+    else items = [r.body];
+    stEl.textContent = `${items.length} item${items.length === 1 ? '' : 's'}${ok ? '' : ' · ' + r.code}`;
+    stEl.className = 'hook-st ' + (ok ? 'ok' : 'bad');
+    out.textContent = JSON.stringify(items, null, 2);
+    if (!ok) { msg.textContent = 'Con Never Error el nodo no se para: la respuesta de error sale como un item normal. ' + (st.full ? 'Mira statusCode para decidir qué hacer con un If.' : 'Activa también Include Response Headers and Status para tener el statusCode.'); msg.className = 'hook-msg warn'; }
+    else { msg.textContent = texto; msg.className = 'hook-msg ' + cls; }
+  };
+
+  const cargar = clave => {
+    const e = EJEMPLOS[clave];
+    Object.assign(st, { method: e.method, url: e.url, auth: e.auth, sendq: e.sendq, q: e.q.map(x => x.slice()), ej: clave, full: false, never: false });
+    if (e.gtype) st.gtype = e.gtype;
+    pintarNodo(); pintarPeticion();
+    $h('hs-out').textContent = 'Pulsa «Execute step».'; $h('hs-st').textContent = ''; $h('hs-st').className = 'hook-st';
+    $h('hs-msg').textContent = ''; $h('hs-msg').className = 'hook-msg';
+    document.getElementById('hsim').classList.remove('fail');
+  };
+
+  const hsim = $h('hsim');
+  const leer = e => {
+    const t = e.target;
+    if (t.id === 'hs-method') st.method = t.value;
+    else if (t.id === 'hs-url') { st.url = t.value; st.ej = ''; document.querySelectorAll('#hsim [data-ej]').forEach(b => b.setAttribute('aria-pressed', 'false')); }
+    else if (t.id === 'hs-auth') { st.auth = t.value; pintarNodo(); }
+    else if (t.id === 'hs-gtype') { st.gtype = t.value; pintarNodo(); }
+    else if (t.id === 'hs-sendq') { st.sendq = t.checked; if (st.sendq && !st.q.length) st.q = [['', '']]; pintarNodo(); }
+    else if (t.id === 'hs-full') st.full = t.checked;
+    else if (t.id === 'hs-never') st.never = t.checked;
+    else if (t.dataset.cred) valores[st.gtype][t.dataset.cred] = t.value;
+    else if (t.dataset.q !== undefined) st.q[+t.dataset.q][+t.dataset.p] = t.value;
+    else return;
+    pintarPeticion();
+  };
+  hsim.addEventListener('input', leer);
+  hsim.addEventListener('change', e => { if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') leer(e); });
+  hsim.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.ej) cargar(b.dataset.ej);
+    else if (b.id === 'hs-run') ejecutar();
+    else if (b.id === 'hs-addq') { st.q.push(['', '']); pintarNodo(); pintarPeticion(); }
+    else if (b.id === 'hs-delq') { st.q.pop(); pintarNodo(); pintarPeticion(); }
+  });
+  $h('hs-url').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ejecutar(); } });
+  cargar('bearer');
+}
+</script>
+</body>
+</html>

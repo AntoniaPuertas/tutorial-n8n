@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 12 · Proyecto final: centro de soporte con n8n e IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m12" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 12 · 2 horas</span>
+    <h1>Proyecto final: centro de soporte con IA</h1>
+    <p class="lead">Ha llegado el momento de juntarlo todo. Vas a construir, de principio a fin, el sistema de soporte de una pequeña tienda online: un formulario recoge los mensajes de los clientes, la IA los clasifica y redacta un borrador de respuesta, todo queda guardado en una tabla, lo urgente te llega al momento y cada mañana recibes un resumen. Y si algo falla, te enteras.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#proyecto">El proyecto</a><a href="#plan">El plan</a><a href="#simulador">Simulador</a><a href="#fase1">1 · Preparar</a><a href="#fase2">2 · Recibir</a><a href="#fase3">3 · Clasificar</a><a href="#fase4">4 · Registrar</a><a href="#fase5">5 · Avisar</a><a href="#fase6">6 · Robustez</a><a href="#fase7">7 · Resumen diario</a><a href="#fase8">8 · Publicar</a><a href="#solucion">Solución</a><a href="#problemas">Problemas</a><a href="#mejoras">Mejoras</a><a href="#siguiente">¿Y ahora?</a><a href="#test">Test</a>
+    </nav>
+
+    <div class="note info"><p>Basado en <strong>n8n 2.x</strong> (estable 2.49.8 a finales de noviembre de 2026): <em>n8n Form Trigger</em> 2.6, <em>Basic LLM Chain</em> 1.9, <em>Structured Output Parser</em> 1.3, <em>Code</em> 2, <em>Data table</em> 1.1, <em>If</em> 2.4, <em>Telegram</em> 1.2 y <em>Schedule Trigger</em> 1.4. Solo necesitas la clave gratuita de Gemini del módulo 10. Telegram (módulo 8) es opcional.</p></div>
+
+    <h2 id="proyecto">El proyecto</h2>
+    <p><strong>Lumen</strong> es una tienda online de lámparas (inventada). Hoy los clientes escriben a un email que nadie revisa a tiempo: los cobros duplicados se mezclan con preguntas sobre colores y las urgencias se pierden. Te piden esto:</p>
+    <ol class="steps">
+      <li><strong>Un formulario de contacto</strong> con nombre, email, número de pedido (opcional) y mensaje.</li>
+      <li><strong>Clasificación automática</strong> de cada mensaje: tema (envío, devolución, pago, producto u otro), urgencia (alta, media o baja), un resumen corto y un borrador de respuesta.</li>
+      <li><strong>Un registro</strong> de todas las incidencias con un número de ticket.</li>
+      <li><strong>Un aviso inmediato</strong> cuando algo es urgente.</li>
+      <li><strong>Un resumen cada mañana</strong> con lo que entró en las últimas 24 horas.</li>
+      <li><strong>Que nada se pierda</strong>: si la IA falla, el mensaje se guarda igualmente para revisarlo a mano; si un workflow se rompe, llega un aviso.</li>
+    </ol>
+    <p>Cada pieza sale de un módulo que ya has hecho:</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Necesidad</th><th>Lo resuelves con…</th><th>Módulo</th></tr></thead>
+      <tbody>
+        <tr><td>Recibir mensajes</td><td>n8n Form Trigger</td><td>6</td></tr>
+        <tr><td>Limpiar los datos</td><td>Edit Fields con expresiones (<code>trim</code>, <code>toTitleCase</code>)</td><td>4 y 5</td></tr>
+        <tr><td>Entender el mensaje</td><td>Basic LLM Chain + Gemini + Structured Output Parser</td><td>10</td></tr>
+        <tr><td>Montar el registro</td><td>Code (Run Once for Each Item)</td><td>9</td></tr>
+        <tr><td>Guardar</td><td>Data table (la base de datos de n8n)</td><td>nuevo</td></tr>
+        <tr><td>Decidir si es urgente</td><td>If</td><td>7</td></tr>
+        <tr><td>Avisar</td><td>Telegram</td><td>8</td></tr>
+        <tr><td>Resumen diario</td><td>Schedule Trigger + Code (Run Once for All Items)</td><td>6 y 9</td></tr>
+        <tr><td>Que no se pierda nada</td><td>Retry On Fail, salida de error, Always Output Data, error workflow</td><td>11</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note tip"><p>¿Por qué una <strong>Basic LLM Chain</strong> y no un AI Agent? Porque clasificar un mensaje es <em>una</em> pregunta al modelo: no hace falta conversar, ni memoria, ni herramientas. Es más barato, más rápido y más predecible (módulo 10).</p></div>
+
+    <h2 id="plan">El plan</h2>
+    <p>Antes de abrir n8n, un profesional dibuja el sistema, decide qué datos guarda y prepara casos de prueba. Este es el plan.</p>
+    <h3>Tres workflows</h3>
+    <div class="flows">
+      <p class="flows-t">1 · Soporte · Recibir incidencias (cada vez que alguien envía el formulario)</p>
+      <div class="flow" data-flujo="recibir"></div>
+      <p class="flows-t">2 · Soporte · Resumen diario (cada mañana a las 9)</p>
+      <div class="flow" data-flujo="resumen"></div>
+      <p class="flows-t">3 · Avisos de error (el del módulo 11, vigila a los otros dos)</p>
+      <div class="flow" data-flujo="avisos"></div>
+    </div>
+    <p>Dividirlo en varios workflows pequeños hace que cada uno sea fácil de entender, probar y arreglar. Se comunican a través de la tabla: uno escribe y el otro lee.</p>
+    <h3>La tabla «incidencias»</h3>
+    <p>Las <strong>Data tables</strong> son tablas que viven dentro de n8n: no necesitas Google Sheets ni una base de datos aparte. Cada fila tiene además tres columnas automáticas: <code>id</code>, <code>createdAt</code> y <code>updatedAt</code>.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Columna</th><th>Tipo</th><th>Ejemplo</th></tr></thead>
+      <tbody>
+        <tr><td><code>ticket</code></td><td>String</td><td>SOP-231</td></tr>
+        <tr><td><code>nombre</code></td><td>String</td><td>Marta Gil</td></tr>
+        <tr><td><code>email</code></td><td>String</td><td>marta@ejemplo.com</td></tr>
+        <tr><td><code>pedido</code></td><td>String</td><td>1051 (o vacío)</td></tr>
+        <tr><td><code>mensaje</code></td><td>String</td><td>El pedido lleva 10 días en camino…</td></tr>
+        <tr><td><code>categoria</code></td><td>String</td><td>envio</td></tr>
+        <tr><td><code>urgencia</code></td><td>String</td><td>alta</td></tr>
+        <tr><td><code>prioridad</code></td><td>Number</td><td>1 (alta), 2 (media), 3 (baja)</td></tr>
+        <tr><td><code>resumen</code></td><td>String</td><td>Pedido retrasado 10 días sin movimiento</td></tr>
+        <tr><td><code>respuesta</code></td><td>String</td><td>Borrador para el cliente</td></tr>
+        <tr><td><code>clasificado_por</code></td><td>String</td><td>ia (o pendiente, si la IA falló)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3>Casos de prueba</h3>
+    <p>Cinco mensajes que cubren los casos importantes. Los usarás en cada fase. La clasificación esperada es orientativa: un modelo real puede variar algo.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Mensaje</th><th>Esperado</th></tr></thead>
+      <tbody id="casos"></tbody>
+    </table>
+    </div>
+
+    <h2 id="simulador">Simulador del proyecto</h2>
+    <p>Antes de construirlo, míralo funcionar. Este simulador recorre el workflow «Recibir incidencias» nodo a nodo: rellena el formulario (o usa los casos de prueba), envíalo y abre cada paso para ver los datos que salen. Las incidencias se acumulan en la tabla y puedes lanzar el resumen diario.</p>
+    <div class="prosim" id="prosim">
+      <div class="ps-form">
+        <h4>Formulario de soporte</h4>
+        <form id="ps-form" novalidate>
+          <div class="hook-f"><label for="ps-nombre">Nombre *</label><input type="text" id="ps-nombre" autocomplete="off"></div>
+          <div class="hook-f"><label for="ps-email">Email *</label><input type="email" id="ps-email" autocomplete="off"></div>
+          <div class="hook-f"><label for="ps-pedido">Número de pedido (si lo tienes)</label><input type="number" id="ps-pedido"></div>
+          <div class="hook-f"><label for="ps-mensaje">¿En qué podemos ayudarte? *</label><textarea id="ps-mensaje" rows="4"></textarea></div>
+          <label class="hook-sw"><input type="checkbox" id="ps-fallo"> Simular fallo de la IA (cuota agotada)</label>
+          <div class="sim-btns"><button class="btn sm" type="submit">Enviar</button></div>
+          <p class="hook-msg" id="ps-aviso" aria-live="polite"></p>
+        </form>
+        <p class="lab-chips-t">Casos de prueba:</p>
+        <div class="lab-chips" id="ps-casos"></div>
+      </div>
+      <div class="ps-run">
+        <h4>Ejecución <span class="hook-st" id="ps-st"></span></h4>
+        <ol class="ps-pasos" id="ps-pasos"><li class="as-empty">Envía el formulario para ver el recorrido.</li></ol>
+      </div>
+      <div class="ps-tabla">
+        <h4>Data table «incidencias» <small id="ps-n">0 filas</small></h4>
+        <div class="scroll"><table class="ps-t"><thead><tr><th>id</th><th>ticket</th><th>nombre</th><th>categoria</th><th>urgencia</th><th>resumen</th><th>clasificado_por</th></tr></thead><tbody id="ps-filas"><tr><td colspan="7" class="rt-empty">Sin filas todavía.</td></tr></tbody></table></div>
+        <div class="sim-btns"><button class="btn sm" type="button" id="ps-resumen">Ejecutar «Resumen diario»</button><button class="btn sm ghost" type="button" id="ps-vaciar">Vaciar tabla</button></div>
+        <pre id="ps-texto" hidden></pre>
+      </div>
+    </div>
+    <div class="note info"><p>Lo que simula y lo que no: el formulario, las expresiones de «Normalizar», los dos nodos Code (ejecuta <strong>exactamente</strong> el código de la práctica), la tabla y el If funcionan como en n8n. La IA no: aquí la sustituye un clasificador por palabras clave con respuestas de plantilla. Un modelo real entiende muchos más matices y redacta mejor.</p></div>
+
+    <h2 id="fase1">Fase 1 · Preparar el terreno</h2>
+    <ol class="steps">
+      <li><strong>Crea la tabla.</strong> En la pantalla de inicio (<em>Overview</em>), abre la pestaña <strong>Data tables</strong> y pulsa <strong>Create data table</strong> → <em>From scratch</em>. En <em>Data table name</em> escribe <code>incidencias</code>.</li>
+      <li><strong>Añade las columnas</strong> de la tabla del plan con <strong>Add Column</strong>: todas de tipo <em>String</em> salvo <code>prioridad</code>, que es <em>Number</em>. Los nombres solo pueden llevar letras sin tilde, números y guiones bajos, y empezar por letra: por eso es <code>categoria</code> y no <code>categoría</code>.</li>
+      <li><strong>Comprueba la credencial de Gemini</strong> del módulo 10 (<em>Overview → Credentials</em>). Si no la tienes, créala ahora (pestaña «Google Gemini» del módulo 10).</li>
+      <li><strong>Comprueba que «Avisos de error»</strong> del módulo 11 existe y está publicado. Si no, pega su solución y publícalo.</li>
+      <li>(Opcional) Ten a mano tu credencial de <strong>Telegram</strong> y tu <em>Chat ID</em> del módulo 8.</li>
+    </ol>
+    <div class="note tip"><p>Una tabla también se puede crear importando un CSV (<em>Import CSV</em>) o desde un workflow con el propio nodo <em>Data table</em> (<em>Resource: Table → Create</em>). Desde la tabla puedes ver, editar y descargar las filas en CSV.</p></div>
+
+    <h2 id="fase2">Fase 2 · Recibir los mensajes</h2>
+    <ol class="steps">
+      <li><strong>Crea el workflow</strong> «Soporte · Recibir incidencias». Como trigger, elige <strong>On form submission</strong> y llámalo <strong>Formulario de soporte</strong>.</li>
+      <li><strong>Configura el formulario:</strong> <em>Form Title</em> = <code>Soporte de Lumen</code>; <em>Form Description</em> = <code>Cuéntanos qué ha pasado y te responderemos lo antes posible.</code></li>
+      <li><strong>Campos</strong> (<em>Form Elements</em>). Rellena siempre <em>Field Name</em>: será la clave en el JSON (módulo 6).
+        <div class="scroll">
+        <table class="stack">
+          <thead><tr><th>Field Label</th><th>Field Name</th><th>Element Type</th><th>Required</th></tr></thead>
+          <tbody>
+            <tr><td>Nombre</td><td><code>nombre</code></td><td>Text</td><td>Sí</td></tr>
+            <tr><td>Email</td><td><code>email</code></td><td>Email</td><td>Sí</td></tr>
+            <tr><td>Número de pedido (si lo tienes)</td><td><code>pedido</code></td><td>Number</td><td>No</td></tr>
+            <tr><td>¿En qué podemos ayudarte?</td><td><code>mensaje</code></td><td>Textarea</td><td>Sí</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </li>
+      <li><strong>Opciones:</strong> <em>Path</em> = <code>soporte-lumen</code>, <em>Button Label</em> = <code>Enviar</code>, <em>Append n8n Attribution</em> desactivado y <em>Form Response</em> → <em>Respond With</em> Text: <code>Gracias. Hemos recibido tu mensaje y te responderemos pronto.</code> Deja <em>Respond When</em> en <em>Form Is Submitted</em>: el cliente no tiene que esperar a la IA.</li>
+      <li><strong>Normalizar.</strong> Añade un <em>Edit Fields</em> llamado <strong>Normalizar</strong> con cuatro campos de tipo String:
+        <ul class="lines">
+          <li><code>nombre</code><span><code>{{ $json.nombre.trim().toTitleCase() }}</code> («marta gil » → «Marta Gil»)</span></li>
+          <li><code>email</code><span><code>{{ $json.email.trim().toLowerCase() }}</code></span></li>
+          <li><code>pedido</code><span><code>{{ $json.pedido ? String($json.pedido) : '' }}</code> (vacío si no lo escriben)</span></li>
+          <li><code>mensaje</code><span><code>{{ $json.mensaje.trim() }}</code></span></li>
+        </ul>
+      </li>
+      <li><strong>Prueba.</strong> Pulsa <em>Execute workflow</em>: se abre el formulario de prueba en otra pestaña. Envía el caso 2 de la tabla (escribe el nombre en minúsculas, con espacios al final). Vuelve al lienzo y abre <em>Normalizar</em>: el nombre sale limpio.</li>
+    </ol>
+
+    <h2 id="fase3">Fase 3 · Clasificar con IA</h2>
+    <ol class="steps">
+      <li><strong>Añade la cadena.</strong> Detrás de <em>Normalizar</em>, abre la categoría <strong>AI</strong> y elige <strong>Basic LLM Chain</strong>. Llámala <strong>Clasificar con IA</strong>.</li>
+      <li><em>Source for Prompt (User Message)</em>: <strong>Define below</strong>. En <em>Prompt (User Message)</em>, en modo <em>Expression</em>:
+        <div class="code"><div class="h">Prompt de «Clasificar con IA»<button class="copy" type="button">Copiar</button></div><pre><code>Clasifica este mensaje de un cliente.
+
+Cliente: {{ $json.nombre }}
+Pedido: {{ $json.pedido || 'sin número' }}
+Mensaje: {{ $json.mensaje }}</code></pre></div>
+      </li>
+      <li><strong>Instrucciones.</strong> En <em>Chat Messages (if Using a Chat Model)</em>, añade un mensaje, deja <em>Type Name or ID</em> en <strong>System</strong> y escribe en <em>Message</em>:
+        <div class="code"><div class="h">Mensaje de sistema<button class="copy" type="button">Copiar</button></div><pre><code>Eres el asistente de soporte de Lumen, una tienda online de lámparas. Clasificas cada mensaje de un cliente y propones una respuesta.
+- categoria: envio, devolucion, pago, producto u otro.
+- urgencia: alta (cobro duplicado, producto roto o peligroso, pedido perdido más de 7 días, cliente muy enfadado), media (dudas sobre un pedido en curso, cambios y devoluciones) o baja (preguntas generales y sugerencias).
+- resumen: una frase de 15 palabras como máximo.
+- respuesta: borrador amable en español, de 2 a 4 frases, tuteando. No inventes datos ni prometas plazos o reembolsos concretos.</code></pre></div>
+      </li>
+      <li><strong>Modelo.</strong> En el conector <em>Model</em> de la cadena, añade un <strong>Google Gemini Chat Model</strong> llamado <strong>Gemini</strong>, con tu credencial, un modelo Flash y <em>Sampling Temperature</em> = <code>0.2</code>.</li>
+      <li><strong>Formato.</strong> Activa <strong>Require Specific Output Format</strong>. En el nuevo conector <em>Output Parser</em>, añade un <strong>Structured Output Parser</strong> llamado <strong>Formato de la respuesta</strong> con <em>Schema Type</em> = <em>Generate From JSON Example</em> y este ejemplo:
+        <div class="code"><div class="h">JSON Example<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "categoria": "envio",
+  "urgencia": "media",
+  "resumen": "El pedido 1051 no ha llegado y el seguimiento no avanza",
+  "respuesta": "Hola, Marta: siento el retraso con tu pedido. Lo estamos revisando con la empresa de transporte y te escribimos en cuanto sepamos algo."
+}</code></pre></div>
+      </li>
+      <li><strong>Prueba.</strong> Ejecuta el workflow y envía el caso 1. La salida de la cadena es un item con <code>output</code>: <code>{{ $json.output.categoria }}</code> debería ser <code>pago</code> y <code>{{ $json.output.urgencia }}</code>, <code>alta</code>. Lee el borrador de <code>respuesta</code>: ¿lo enviarías tal cual?</li>
+    </ol>
+    <div class="note warn"><p>La IA <strong>propone</strong>, no decide. Por eso el borrador se guarda para que una persona lo revise antes de enviarlo, y el mensaje de sistema le prohíbe prometer plazos o reembolsos. Prueba los 5 casos: si alguno sale mal clasificado, mejora las definiciones de urgencia del mensaje de sistema antes de cambiar de modelo.</p></div>
+
+    <h2 id="fase4">Fase 4 · Registrar la incidencia</h2>
+    <ol class="steps">
+      <li><strong>Preparar registro.</strong> Detrás de la cadena, un <strong>Code</strong> llamado <strong>Preparar registro</strong> en modo <strong>Run Once for Each Item</strong>, con este código:
+        <div class="code"><div class="h">Código de «Preparar registro»<button class="copy" type="button">Copiar</button></div><pre><code>// Se ejecuta una vez por incidencia
+// Datos del formulario (normalizados) y clasificación de la IA
+const f = $('Normalizar').item.json;
+const ia = $json.output ?? {};   // si la IA falló, llega sin «output»
+
+const urgencia = ['alta', 'media', 'baja'].includes(ia.urgencia) ? ia.urgencia : 'media';
+const prioridad = { alta: 1, media: 2, baja: 3 }[urgencia];
+
+return {
+  ticket: 'SOP-' + $execution.id,
+  nombre: f.nombre,
+  email: f.email,
+  pedido: f.pedido,
+  mensaje: f.mensaje,
+  categoria: ia.categoria ?? 'otro',
+  urgencia,
+  prioridad,
+  resumen: ia.resumen ?? f.mensaje.slice(0, 80),
+  respuesta: ia.respuesta ?? '',
+  clasificado_por: ia.categoria ? 'ia' : 'pendiente'
+};</code></pre></div>
+        <p>Junta en un objeto los datos del formulario (de <em>Normalizar</em>) y los de la IA, con valores por defecto si la IA no ha respondido. El ticket usa el número de ejecución, que es único.</p>
+      </li>
+      <li><strong>Guardar incidencia.</strong> Añade un nodo <strong>Data table</strong> (búscalo como <em>Data table</em>) llamado <strong>Guardar incidencia</strong>: <em>Resource</em> Row, <em>Operation</em> <strong>Insert</strong>, <em>Data table</em> = <code>incidencias</code> (<em>From list</em>) y, en <em>Columns</em>, <strong>Map Automatically</strong>: como el Code saca exactamente las columnas de la tabla, cada campo va a su columna.</li>
+      <li><strong>Prueba.</strong> Envía el caso 3. La salida de <em>Guardar incidencia</em> incluye las columnas automáticas <code>id</code>, <code>createdAt</code> y <code>updatedAt</code>. Abre la tabla en <em>Overview → Data tables → incidencias</em>: ahí está la fila.</li>
+    </ol>
+
+    <h2 id="fase5">Fase 5 · Avisar de lo urgente</h2>
+    <ol class="steps">
+      <li><strong>¿Urgente?</strong> Detrás de <em>Guardar incidencia</em>, un <strong>If</strong> llamado <strong>¿Urgente?</strong> con la condición <code>{{ $json.urgencia }}</code> · String · <em>is equal to</em> · <code>alta</code>.</li>
+      <li><strong>Avisar por Telegram.</strong> En la salida <em>true</em>, un <strong>Telegram</strong> → <em>Send Message</em> con tu credencial y tu <em>Chat ID</em>, <em>Parse Mode</em> HTML y <em>Append n8n Attribution</em> desactivado (módulo 8). <em>Text</em>:
+        <div class="code"><div class="h">Text de «Avisar por Telegram»<button class="copy" type="button">Copiar</button></div><pre><code>Incidencia URGENTE {{ $json.ticket }}
+{{ $json.nombre }} ({{ $json.email }})
+Categoría: {{ $json.categoria }}
+{{ $json.resumen }}</code></pre></div>
+      </li>
+      <li><strong>Prueba</strong> con el caso 4 (te llega el aviso) y con el caso 5 (no te llega: sale por <em>false</em>, que no tiene nada conectado).</li>
+    </ol>
+    <div class="note info"><p>¿Sin Telegram? Pon en su lugar un <em>Gmail</em> (módulo 8), un <em>No Operation</em> como recordatorio o, simplemente, deja la rama vacía: la incidencia ya está guardada con <code>prioridad</code> 1 y puedes ordenar la tabla por esa columna.</p></div>
+
+    <h2 id="fase6">Fase 6 · Que nada se pierda</h2>
+    <p>Ahora toca pensar como el módulo 11: ¿qué puede fallar? Lo más probable es la IA (cuota agotada, servicio caído, una respuesta con formato raro). Si falla, no queremos perder el mensaje del cliente.</p>
+    <ol class="steps">
+      <li><strong>Reintentos.</strong> En <em>Clasificar con IA</em> → <em>Settings</em>: <strong>Retry On Fail</strong> activado, <em>Max. Tries</em> 3 y <em>Wait Between Tries (ms)</em> 5000. Los errores 429 de los planes gratuitos suelen pasarse en unos segundos.</li>
+      <li><strong>Rama de error.</strong> En la misma pestaña, <strong>On Error</strong> = <strong>Continue (using error output)</strong>. Conecta la nueva salida <em>Error</em> también a <em>Preparar registro</em>. El Code ya está preparado: si no llega <code>output</code>, guarda la incidencia como <code>otro</code> / <code>media</code> con <code>clasificado_por</code> = <code>pendiente</code>.</li>
+      <li><strong>Provoca el fallo.</strong> En el nodo <em>Gemini</em>, cambia <em>Model</em> a modo <em>Expression</em> y escribe <code>models/no-existe</code>. Envía el caso 1: tras los reintentos, el item sale por <em>Error</em> y la fila se guarda como <code>pendiente</code>. Deshaz el cambio.</li>
+      <li><strong>Error workflow.</strong> En <strong>⋯ → Settings</strong>, elige <strong>Avisos de error</strong> en <em>Error Workflow</em>. Si falla algo que no está controlado (la tabla, por ejemplo), te llegará el aviso.</li>

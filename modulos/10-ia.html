@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 10 · IA en n8n: AI Agent, modelos, memoria y herramientas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m10" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 10 · 75 minutos</span>
+    <h1>IA en n8n</h1>
+    <p class="lead">Un modelo de lenguaje sabe escribir, resumir y razonar, pero por sí solo no puede mirar el tiempo, leer tu hoja de cálculo ni recordar lo que le dijiste ayer. En n8n lo conviertes en un <strong>agente</strong>: le das un modelo, una memoria y unas herramientas, y él decide qué usar en cada momento. En este módulo construyes un asistente de chat que consulta el tiempo de verdad.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#que-aporta">¿Qué aporta?</a><a href="#cluster">Nodos raíz y sub-nodos</a><a href="#agente">AI Agent</a><a href="#modelos">Modelos</a><a href="#chat">Chat Trigger</a><a href="#memoria">Memoria</a><a href="#herramientas">Herramientas</a><a href="#simulador">Simulador</a><a href="#estructurada">Salida estructurada</a><a href="#buenas">Buenas prácticas</a><a href="#practica">Práctica</a><a href="#solucion">Solución</a><a href="#problemas">Problemas</a><a href="#test">Test</a>
+    </nav>
+
+    <div class="note info"><p>Basado en la documentación y el código de <strong>n8n 2.x</strong> (estable 2.49.8 a finales de noviembre de 2026): <em>AI Agent</em> 3.1, <em>Chat Trigger</em> 1.5, <em>Simple Memory</em> 1.4, <em>Google Gemini Chat Model</em> 1.2, <em>Structured Output Parser</em> 1.3, <em>Calculator</em> 1 y <em>HTTP Request Tool</em> 4.5. Los nombres de los modelos de IA cambian cada pocos meses: elige siempre el modelo de la lista que te muestra el nodo.</p></div>
+
+    <h2 id="que-aporta">¿Qué aporta la IA a un workflow?</h2>
+    <p>Hasta ahora tus workflows seguían reglas fijas: si el país es ES, por aquí; si no, por allá. Eso funciona cuando los datos están ordenados. Pero muchos datos reales son <strong>texto libre</strong>: un email de un cliente, un mensaje de chat, una reseña. Ahí un modelo de lenguaje (<em>LLM</em>, <em>Large Language Model</em>) entiende lo que pone y lo transforma.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Quiero…</th><th>Sin IA</th><th>Con IA</th></tr></thead>
+      <tbody>
+        <tr><td>Clasificar emails de clientes</td><td>Buscar palabras clave con If (falla con sinónimos)</td><td>El modelo entiende el tema y la urgencia</td></tr>
+        <tr><td>Sacar datos de un texto</td><td>Expresiones regulares frágiles</td><td>«Saca nombre, fecha y pedido» en JSON</td></tr>
+        <tr><td>Resumir noticias o documentos</td><td>No se puede</td><td>Resumen en 3 frases</td></tr>
+        <tr><td>Responder preguntas en un chat</td><td>Menús con opciones fijas</td><td>Conversación libre que consulta tus datos</td></tr>
+        <tr><td>Sumar importes o filtrar por fecha</td><td><strong>Nodos normales</strong></td><td>No: es más caro, más lento y puede equivocarse</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>La diferencia entre un modelo y un <strong>agente</strong> es importante:</p>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Modelo de lenguaje</h3><p style="margin:0">Recibe texto y devuelve texto. No recuerda nada entre llamadas, no sabe qué día es hoy y no puede consultar nada. Es como un experto encerrado en una habitación sin teléfono.</p></div>
+      <div class="card"><h3 style="margin-top:0">Agente</h3><p style="margin:0">Un modelo con <strong>memoria</strong> (la conversación anterior) y <strong>herramientas</strong> (consultar una API, calcular, buscar). Ante cada mensaje decide si necesita una herramienta, la usa, lee el resultado y responde.</p></div>
+    </div>
+    <div class="note warn"><p>Un modelo puede <strong>inventarse</strong> datos con total seguridad (lo que se llama <em>alucinar</em>). Por eso, para datos reales (el tiempo, un precio, un pedido) dale una herramienta que los consulte, y revisa lo que hace antes de dejarle enviar emails o borrar cosas.</p></div>
+
+    <h2 id="cluster">Nodos raíz y sub-nodos</h2>
+    <p>Los nodos de IA no se conectan en fila como los demás. Funcionan en <strong>grupos</strong> (<em>cluster nodes</em>): un <strong>nodo raíz</strong> hace el trabajo y debajo le cuelgas <strong>sub-nodos</strong> que le dan capacidades. En el lienzo, los sub-nodos se unen al raíz por unos conectores de la parte de abajo, con líneas discontinuas.</p>
+    <div class="cluster" role="img" aria-label="Esquema: el nodo AI Agent recibe el mensaje del Chat Trigger y tiene debajo cuatro conectores: Chat Model, Memory, Tool y Output Parser">
+      <div class="cl-top"><span class="cl-nd trig">Chat Trigger<small>el mensaje</small></span><span class="cl-wire" aria-hidden="true"></span><span class="cl-nd root">AI Agent<small>nodo raíz</small></span><span class="cl-wire" aria-hidden="true"></span><span class="cl-nd">Siguiente nodo<small>usa <code>$json.output</code></small></span></div>
+      <div class="cl-subs">
+        <div class="cl-sub req"><b>Chat Model</b><span>El cerebro. Obligatorio (uno, más uno de reserva opcional)</span><em>Gemini, OpenAI, Ollama…</em></div>
+        <div class="cl-sub"><b>Memory</b><span>La conversación anterior. Opcional (una)</span><em>Simple Memory, Postgres…</em></div>
+        <div class="cl-sub"><b>Tool</b><span>Lo que puede hacer. Opcional (varias)</span><em>Calculator, HTTP Request…</em></div>
+        <div class="cl-sub"><b>Output Parser</b><span>Formato de la respuesta. Solo si lo activas</span><em>Structured Output Parser</em></div>
+      </div>
+    </div>
+    <p>Los sub-nodos no reciben items por la entrada normal ni sacan items por la salida: el nodo raíz los llama cuando los necesita. Por eso, al ejecutar, los verás iluminarse en el lienzo uno tras otro mientras el agente trabaja.</p>
+    <p>Nodos raíz que vas a encontrar en la categoría <strong>AI</strong> del panel de nodos:</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Nodo raíz</th><th>Qué hace</th><th>Memoria y herramientas</th></tr></thead>
+      <tbody>
+        <tr><td>AI Agent</td><td>Conversa, decide y usa herramientas en varios pasos</td><td>Sí</td></tr>
+        <tr><td>Basic LLM Chain</td><td>Una sola pregunta al modelo y su respuesta (resumir, traducir, redactar)</td><td>No</td></tr>
+        <tr><td>Information Extractor</td><td>Saca datos concretos de un texto en el formato que definas</td><td>No</td></tr>
+        <tr><td>Text Classifier</td><td>Clasifica un texto en categorías y saca cada una por una salida distinta</td><td>No</td></tr>
+        <tr><td>Sentiment Analysis</td><td>Detecta si un texto es positivo, negativo o neutro</td><td>No</td></tr>
+        <tr><td>Summarization Chain</td><td>Resume textos largos por partes</td><td>No</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note tip"><p>Si tu tarea es <strong>una sola llamada</strong> (resumir este texto, clasificar este email), usa una cadena: es más simple, más barata y más predecible que un agente. Usa el AI Agent cuando haga falta conversar o decidir qué herramienta usar.</p></div>
+
+    <h2 id="agente">El nodo AI Agent</h2>
+    <p>Es el centro de todo. Recibe un mensaje, se lo pasa al modelo junto con las instrucciones, la memoria y la lista de herramientas, y repite este ciclo hasta tener la respuesta:</p>
+    <div class="flow" data-flujo="ciclo"></div>
+    <p>En el ciclo, cada vuelta en la que el modelo pide herramientas cuenta como una <strong>iteración</strong>. Si pide varias a la vez (el tiempo de Sevilla y el de Bilbao), n8n las ejecuta en la misma vuelta.</p>
+    <h3>Parámetros principales</h3>
+    <ul class="lines">
+      <li><code>Source for Prompt (User Message)</code><span>De dónde sale el mensaje del usuario. <em>Connected Chat Trigger Node</em> (por defecto) lo coge del campo <code>chatInput</code> que saca el Chat Trigger. <em>Define below</em> te deja escribirlo tú, normalmente con una expresión como <code>Resume este email: {{ $json.texto }}</code>.</span></li>
+      <li><code>Require Specific Output Format</code><span>Actívalo cuando quieras la respuesta en JSON con unos campos fijos. Aparece un conector <em>Output Parser</em> (lo ves más abajo).</span></li>
+      <li><code>Enable Fallback Model</code><span>Añade un segundo conector de modelo: si el principal falla (caído, sin cuota), el agente usa el de reserva.</span></li>
+    </ul>
+    <h3>Opciones (<em>Add Option</em>)</h3>
+    <ul class="lines">
+      <li><code>System Message</code><span>Las instrucciones fijas del agente: quién es, cómo responde y qué herramientas tiene. Por defecto, <code>You are a helpful assistant</code>. Es lo más importante que vas a escribir.</span></li>
+      <li><code>Max Iterations</code><span>Máximo de vueltas del ciclo (por defecto 10). Si se alcanza, el nodo falla con <em>Max iterations (10) reached</em>. Evita bucles infinitos y gastos inesperados.</span></li>
+      <li><code>Return Intermediate Steps</code><span>Añade a la salida el campo <code>intermediateSteps</code> con cada herramienta usada, lo que le pidió y lo que le devolvió. Muy útil para depurar.</span></li>
+      <li><code>Enable Streaming</code><span>Envía la respuesta palabra a palabra al chat mientras se genera (activada por defecto). Solo se nota si el Chat Trigger responde en modo <em>Streaming</em>.</span></li>
+      <li><code>Force Tool Call on First Iteration</code><span>Obliga al modelo a usar al menos una herramienta en su primera respuesta. Ayuda a modelos pequeños que tienden a contestar sin consultar.</span></li>
+      <li><code>Max Tokens To Read From Memory</code><span>Límite de historial que se lee de la memoria (0 = todo lo que dé la memoria).</span></li>
+    </ul>
+    <p>La salida del agente es un item con un campo <code>output</code> que contiene la respuesta en texto:</p>
+    <div class="code"><div class="h">Salida del AI Agent<button class="copy" type="button">Copiar</button></div><pre><code>[
+  {
+    <span class="k">"output"</span>: <span class="s">"Mañana en Sevilla: máxima de 19 °C, mínima de 9 °C y sin lluvia."</span>
+  }
+]</code></pre></div>
+
+    <h2 id="modelos">Elegir un modelo</h2>
+    <p>El sub-nodo <strong>Chat Model</strong> decide qué inteligencia usa el agente. Cada proveedor tiene su nodo (<em>OpenAI Chat Model</em>, <em>Anthropic Chat Model</em>, <em>Google Gemini Chat Model</em>, <em>Ollama Chat Model</em>, <em>Mistral Cloud Chat Model</em>, <em>OpenRouter Chat Model</em>, <em>Groq Chat Model</em>, <em>DeepSeek Chat Model</em>…) y su credencial.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Opción</th><th>Coste</th><th>Ventajas</th><th>Inconvenientes</th></tr></thead>
+      <tbody>
+        <tr><td>Google Gemini (API)</td><td>Plan gratuito con límites; después, pago por uso</td><td>Clave en un minuto, sin tarjeta; buen soporte de herramientas</td><td>Límites por minuto y por día; en el plan gratuito Google puede usar tus datos para mejorar sus productos</td></tr>
+        <tr><td>OpenAI, Anthropic, Mistral…</td><td>Pago por uso (céntimos por conversación)</td><td>Modelos muy capaces y estables</td><td>Necesitas añadir saldo con tarjeta</td></tr>
+        <tr><td>Ollama (en tu ordenador)</td><td>Gratis</td><td>Los datos no salen de tu equipo; sin límites</td><td>Necesita un buen ordenador (mejor con tarjeta gráfica); los modelos pequeños usan peor las herramientas</td></tr>
+        <tr><td>OpenRouter</td><td>Pago por uso (algunos modelos gratis)</td><td>Una sola clave para modelos de muchos proveedores</td><td>Un intermediario más</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>En el nodo del modelo eliges el <strong>Model</strong> de una lista (se carga con tu credencial) y, en <em>Options</em>, ajustes como:</p>
+    <ul class="lines">
+      <li><code>Sampling Temperature</code><span>Cuánta creatividad. Baja (0–0,3) para tareas precisas como clasificar o usar herramientas; alta (0,7–1) para redactar textos variados.</span></li>
+      <li><code>Maximum Number of Tokens</code><span>Longitud máxima de la respuesta. Un <em>token</em> es un trozo de palabra (unas 3/4 partes de una palabra). Los proveedores cobran por tokens de entrada y de salida.</span></li>
+    </ul>
+    <div class="note warn"><p>Para el AI Agent, el modelo tiene que saber usar herramientas (<em>tool calling</em>). Si no, el nodo falla con <strong>Tools Agent requires Chat Model which supports Tools calling</strong>. Los modelos actuales de Gemini, OpenAI y Anthropic lo hacen; en Ollama, elige un modelo marcado como <em>tools</em>.</p></div>
+    <h3>Conectar un modelo</h3>
+    <div class="tabs">
+      <div role="tablist" aria-label="Proveedor del modelo">
+        <button role="tab" id="t-gem" aria-controls="p-gem" aria-selected="true">Google Gemini (gratis)</button>
+        <button role="tab" id="t-oll" aria-controls="p-oll" aria-selected="false">Ollama (local)</button>
+        <button role="tab" id="t-oai" aria-controls="p-oai" aria-selected="false">OpenAI (de pago)</button>
+      </div>
+      <div role="tabpanel" id="p-gem" aria-labelledby="t-gem">
+        <ol class="steps">
+          <li>Entra en <strong>Google AI Studio</strong> (<code>aistudio.google.com</code>) con tu cuenta de Google y acepta las condiciones.</li>
+          <li>Pulsa <strong>Get API key</strong> → <strong>Create API key</strong>. Copia la clave (empieza por <code>AIza…</code>). Trátala como una contraseña.</li>
+          <li>En n8n, en el sub-nodo <strong>Google Gemini Chat Model</strong>, elige <em>Credential</em> → <em>Create new credential</em>. El tipo es <strong>Google Gemini(PaLM) Api</strong>: deja <em>Host</em> como está (<code>https://generativelanguage.googleapis.com</code>), pega la clave en <em>API Key</em> y guarda.</li>
+          <li>En <strong>Model</strong>, abre la lista y elige un modelo <strong>Flash</strong> estable (por ejemplo, <code>models/gemini-3.8-flash</code>). Evita los que terminan en <code>-preview</code>: tienen límites más bajos y cambian.</li>
+        </ol>
+        <p>Los límites del plan gratuito (peticiones por minuto y por día) dependen del modelo y Google los cambia a menudo: los tuyos aparecen en AI Studio, en el apartado de límites (<em>rate limit</em>). Si te pasas, verás un error 429; espera un minuto o prueba un modelo <em>Flash-Lite</em>.</p>
+      </div>
+      <div role="tabpanel" id="p-oll" aria-labelledby="t-oll" hidden>
+        <ol class="steps">
+          <li>Instala <strong>Ollama</strong> desde <code>ollama.com</code> en tu ordenador (Windows, macOS o Linux).</li>
+          <li>Descarga un modelo que sepa usar herramientas. En una terminal: <code>ollama pull llama3.2</code> (unos 2 GB). En <code>ollama.com/search?c=tools</code> tienes la lista; los modelos más grandes funcionan mejor, si tu equipo puede con ellos.</li>
+          <li>En n8n, en el sub-nodo <strong>Ollama Chat Model</strong>, crea una credencial <strong>Ollama</strong>. Ojo con <em>Base URL</em>: n8n está dentro de Docker, y para él <code>localhost</code> es el propio contenedor. Escribe <code>http://host.docker.internal:11434</code>.</li>
+          <li>En <strong>Model</strong>, elige el modelo que descargaste.</li>
+        </ol>
+        <p>En Linux, <code>host.docker.internal</code> no existe por defecto: añade al servicio <code>n8n</code> de tu <code>compose.yml</code> estas líneas y vuelve a arrancar con <code>docker compose up -d</code>:</p>
+        <div class="code"><div class="h">compose.yml (solo Linux)<button class="copy" type="button">Copiar</button></div><pre><code>    <span class="k">extra_hosts</span>:
+      - <span class="s">"host.docker.internal:host-gateway"</span></code></pre></div>
+      </div>
+      <div role="tabpanel" id="p-oai" aria-labelledby="t-oai" hidden>
+        <ol class="steps">
+          <li>Entra en <code>platform.openai.com</code>, añade un método de pago y un saldo pequeño (con 5 € tienes para muchas pruebas). La suscripción de ChatGPT <strong>no</strong> incluye la API: se pagan aparte.</li>
+          <li>En <em>API keys</em>, crea una clave (empieza por <code>sk-</code>).</li>
+          <li>En n8n, en el sub-nodo <strong>OpenAI Chat Model</strong>, crea una credencial <strong>OpenAI</strong> y pega la clave en <em>API Key</em>.</li>
+          <li>En <strong>Model</strong>, elige un modelo pequeño y barato para empezar (el nodo propone <code>gpt-5-mini</code>).</li>
+        </ol>
+        <p>Pon un límite de gasto mensual en la configuración de facturación de OpenAI: un agente con un bucle mal hecho puede hacer muchas llamadas.</p>
+      </div>
+    </div>
+
+    <h2 id="chat">El Chat Trigger</h2>
+    <p>El trigger <strong>When chat message received</strong> (nodo <em>Chat Trigger</em>) lanza el workflow cada vez que alguien escribe en un chat. Mientras pruebas, el chat está en el propio editor: al añadir este trigger aparece el botón <strong>Open chat</strong> abajo, junto al panel <em>Logs</em>.</p>
+    <p>Cada mensaje genera un item así:</p>
+    <div class="code"><div class="h">Salida del Chat Trigger<button class="copy" type="button">Copiar</button></div><pre><code>[
+  {
+    <span class="k">"sessionId"</span>: <span class="s">"6f1c2e8a4b7d4c0e9a2b5d8f1e3c7a90"</span>,
+    <span class="k">"action"</span>: <span class="s">"sendMessage"</span>,
+    <span class="k">"chatInput"</span>: <span class="s">"¿Qué tiempo hará mañana en Sevilla?"</span>
+  }
+]</code></pre></div>
+    <ul class="lines">
+      <li><code>chatInput</code><span>El texto que ha escrito el usuario. El AI Agent lo lee solo si <em>Source for Prompt</em> está en <em>Connected Chat Trigger Node</em>.</span></li>
+      <li><code>sessionId</code><span>Identifica la conversación. La memoria lo usa para no mezclar a dos personas. En el editor, el botón de nueva sesión del chat crea otro.</span></li>
+      <li><code>Make Chat Publicly Available</code><span>Actívalo para tener un chat fuera del editor: <em>Hosted Chat</em> (una página de n8n en <code>…/webhook/&lt;id&gt;/chat</code>) o <em>Embedded Chat</em> (para insertarlo en tu web con el paquete <code>@n8n/chat</code>). Solo funciona con el workflow <strong>publicado</strong>, como cualquier trigger de producción.</span></li>
+      <li><code>Authentication</code><span>En el chat público: <em>None</em> (cualquiera con el enlace), <em>Basic Auth</em> (usuario y contraseña) o <em>n8n User Auth</em> (usuarios de tu n8n). Un chat público sin protección gasta tu cuota de IA con cada visitante.</span></li>
+      <li><code>Response Mode</code><span>Cuándo contesta el chat: <em>When Last Node Finishes</em> (por defecto, envía el <code>output</code> del último nodo), <em>Streaming</em> (palabra a palabra desde el agente) o <em>Using Response Nodes</em> (con nodos <em>Chat</em> repartidos por el workflow).</span></li>
+    </ul>
+    <div class="note info"><p>En n8n 2.x también existen los <strong>agentes independientes</strong> (<em>Agents</em>, en vista previa): asistentes que se configuran fuera de los workflows. Son otra cosa: este módulo trata el <strong>nodo AI Agent</strong>, que vive dentro de un workflow y es el que te permite combinar la IA con todo lo que ya sabes.</p></div>
+
+    <h2 id="memoria">La memoria</h2>
+    <p>El modelo no recuerda nada entre una llamada y la siguiente. Si le dices «me llamo Ana» y luego preguntas «¿cómo me llamo?», sin memoria no lo sabrá. El sub-nodo de memoria guarda la conversación y, en cada mensaje, se la pasa al modelo junto con la pregunta nueva.</p>
+    <div class="items-demo" aria-label="Ejemplo: con una ventana de 2 interacciones, el modelo recibe solo las dos últimas parejas de pregunta y respuesta">
+      <div class="col"><h4>Conversación guardada</h4><span class="it">1 · «Me llamo Ana» → «¡Hola, Ana!»</span><span class="it ok">2 · «¿Tiempo en Bilbao?» → «12 °C…»</span><span class="it ok">3 · «¿Y mañana?» → «11 °C…»</span></div>
+      <div class="mid"><span class="nd-box">Simple Memory<br><small>ventana = 2</small></span></div>
+      <div class="col"><h4>Lo que recibe el modelo</h4><span class="it ok">System Message</span><span class="it ok">Interacciones 2 y 3</span><span class="it ok">Mensaje nuevo: «¿Cómo me llamo?»</span><span class="it">La 1 ya no llega: no sabe tu nombre</span></div>
+    </div>
+    <h3>Simple Memory</h3>
+    <ul class="lines">
+      <li><code>Session ID</code><span><em>Connected Chat Trigger Node</em> (por defecto) usa el <code>sessionId</code> del Chat Trigger. <em>Define below</em> te deja poner la clave tú, por ejemplo <code>{{ $json.email }}</code> para tener una memoria por cliente cuando el mensaje llega por otro trigger.</span></li>
+      <li><code>Context Window Length</code><span>Cuántas interacciones anteriores (pregunta + respuesta) recibe el modelo. Por defecto, 5. Más memoria = más contexto, pero también más tokens en cada llamada.</span></li>
+    </ul>
+    <div class="note warn"><p>Simple Memory guarda la conversación en la memoria RAM de n8n: <strong>se pierde al reiniciar</strong> el contenedor y se borra sola tras una hora sin usarse. Para conversaciones que deban durar, usa una memoria con base de datos: <em>Postgres Chat Memory</em> (con el PostgreSQL opcional del módulo 2), <em>Redis Chat Memory</em> o <em>MongoDB Chat Memory</em>.</p></div>
+    <p>Para casos especiales existe el nodo <strong>Chat Memory Manager</strong>, que lee, añade o borra mensajes de una memoria desde el workflow (por ejemplo, para vaciar la conversación cuando el usuario escribe «empezar de nuevo»).</p>
+
+    <h2 id="herramientas">Las herramientas</h2>
+    <p>Una herramienta (<em>tool</em>) es algo que el agente puede hacer. Para el modelo, cada herramienta es un <strong>nombre</strong>, una <strong>descripción</strong> y unos <strong>parámetros</strong>. Con eso decide si la necesita y con qué valores. Las conectas al conector <em>Tool</em> del agente: tantas como quieras.</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Herramienta</th><th>Para qué</th></tr></thead>
+      <tbody>
+        <tr><td>Calculator</td><td>Cálculos exactos (los modelos fallan más de lo que parece con los números)</td></tr>
+        <tr><td>Think Tool</td><td>Un «borrador» donde el modelo razona antes de responder en tareas complejas</td></tr>
+        <tr><td>Wikipedia, SearXNG, SerpApi</td><td>Buscar información en Wikipedia o en la web</td></tr>
+        <tr><td>HTTP Request Tool</td><td>Llamar a cualquier API, como el nodo HTTP Request del módulo 8</td></tr>
+        <tr><td>Nodos de apps como herramienta</td><td>Gmail, Google Sheets, Telegram, Google Calendar… casi todos los nodos de acciones existen también como herramienta (aparecen con <em>Tool</em> al final al buscarlos desde el conector)</td></tr>
+        <tr><td>Call n8n Sub-Workflow Tool</td><td>Usar otro workflow tuyo como herramienta: lo más potente para tareas con varios pasos</td></tr>
+        <tr><td>Code Tool</td><td>Una función tuya en JavaScript o Python</td></tr>
+        <tr><td>MCP Client Tool</td><td>Usar las herramientas de un servidor MCP (un estándar para ofrecer herramientas a la IA)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3>La descripción de la herramienta</h3>
+    <p>Las herramientas creadas a partir de un nodo tienen el parámetro <strong>Tool Description</strong>: <em>Set Automatically</em> (n8n la genera a partir del nodo) o <em>Set Manually</em> (la escribes tú en <em>Description</em>). Escríbela tú: es lo único que el modelo lee para decidir si la usa. Di qué hace, qué datos necesita y qué devuelve.</p>
+    <p>El nombre que ve el modelo es el del nodo con los espacios cambiados por guiones bajos: «Consultar tiempo» se convierte en <code>Consultar_tiempo</code>.</p>
+    <h3>Que el modelo rellene parámetros: <code>$fromAI()</code></h3>
+    <p>En una herramienta, algunos valores los pones tú (la URL de la API) y otros los tiene que decidir el modelo según la pregunta (la ciudad). Para eso, junto a cada parámetro hay un botón con estrellas, <strong>Let the model define this parameter</strong>: al pulsarlo, el campo pasa a mostrar <em>Defined by agent</em>. Por dentro, n8n escribe una expresión con <code>$fromAI()</code>, que también puedes escribir tú:</p>
+    <div class="code"><div class="h">Sintaxis de $fromAI<button class="copy" type="button">Copiar</button></div><pre><code>{{ $fromAI(<span class="s">'clave'</span>, <span class="s">'descripción para el modelo'</span>, <span class="s">'tipo'</span>, valorPorDefecto) }}
+
+<span class="c">// Ejemplos</span>
+{{ $fromAI(<span class="s">'latitud'</span>, <span class="s">'Latitud de la ciudad en grados decimales'</span>, <span class="s">'number'</span>) }}
+{{ $fromAI(<span class="s">'asunto'</span>, <span class="s">'Asunto del email, máximo 8 palabras'</span>) }}
+Pedido número {{ $fromAI(<span class="s">'pedido'</span>, <span class="s">'Número de pedido'</span>, <span class="s">'number'</span>) }}</code></pre></div>
+    <ul class="lines">
+      <li><code>clave</code><span>Obligatoria. Entre 1 y 64 caracteres: letras sin tildes, números, <code>_</code> y <code>-</code>. Si no, da el error <em>Invalid parameter key</em>.</span></li>
+      <li><code>descripción</code><span>Lo que el modelo lee para saber qué poner. Sé concreto: unidades, formato, ejemplos.</span></li>
+      <li><code>tipo</code><span><code>string</code> (por defecto), <code>number</code>, <code>boolean</code> o <code>json</code>.</span></li>
+    </ul>
+    <div class="note warn"><p>Una herramienta hace cosas de verdad. Si el agente puede enviar emails o borrar filas, puede hacerlo mal. Empieza con herramientas de solo lectura, deja fijos (sin <code>$fromAI</code>) los valores delicados como el destinatario, y para acciones importantes usa los nodos de la categoría <em>Human in the loop</em>, que piden tu aprobación antes de ejecutar la herramienta.</p></div>
+
+    <h2 id="simulador">Simulador de agente</h2>
+    <p>Aquí tienes un AI Agent con un chat, una memoria y dos herramientas: <em>Calculator</em> y <em>Consultar tiempo</em> (la de la práctica). Escribe o usa los mensajes de ejemplo y mira en <strong>Logs</strong> qué hace el agente en cada paso: qué recibe el modelo, qué herramienta pide y qué le devuelve. Después quita la memoria, baja la ventana o desconecta herramientas y repite.</p>
+    <div class="agentsim" id="agentsim">
+      <div class="as-cfg">
+        <h4>AI Agent · sub-nodos</h4>
+        <p class="as-mdl">Chat Model: <strong>modelo simulado</strong></p>
+        <label class="hook-sw"><input type="checkbox" id="as-mem" checked> Simple Memory</label>
+        <div class="hook-f"><label for="as-win">Context Window Length</label><input type="number" id="as-win" min="1" max="10" value="5"></div>
+        <h4>Tools</h4>
+        <label class="hook-sw"><input type="checkbox" id="as-calc" checked> Calculator</label>
+        <label class="hook-sw"><input type="checkbox" id="as-tiempo" checked> Consultar tiempo <small>(HTTP Request Tool)</small></label>
+        <h4>Options</h4>
+        <div class="hook-f"><label for="as-max">Max Iterations</label><input type="number" id="as-max" min="1" max="10" value="10"></div>
+        <label class="hook-sw"><input type="checkbox" id="as-steps"> Return Intermediate Steps</label>
+      </div>
+      <div class="as-chat">
+        <h4>Chat <span class="cl-n" id="as-sess"></span></h4>
+        <div class="as-msgs" id="as-msgs" aria-live="polite"></div>
+        <form class="as-form" id="as-form">
+          <input type="text" id="as-in" aria-label="Mensaje para el agente" placeholder="Escribe un mensaje…" autocomplete="off" maxlength="200">
+          <button class="btn sm" type="submit">Send</button>
+        </form>
+        <div class="sim-btns"><button class="btn sm ghost" type="button" id="as-new">Nueva sesión</button></div>
+      </div>
+      <div class="as-logs">
+        <h4>Logs <span class="hook-st" id="as-st"></span></h4>
+        <ol class="as-log" id="as-log"><li class="as-empty">Envía un mensaje para ver los pasos del agente.</li></ol>
+        <p class="hook-msg" id="as-msg"></p>
+        <details class="hook-cmd"><summary>Lo que recibe el modelo en su última llamada</summary><pre id="as-prompt">—</pre></details>
+        <h4>Output del AI Agent</h4>
+        <pre id="as-out">—</pre>
+      </div>
+    </div>
+    <p class="lab-chips-t">Mensajes de ejemplo (en este orden cuentan una historia):</p>
+    <div class="lab-chips" id="as-chips"></div>
+    <div class="note info"><p>El simulador no usa un modelo de verdad: reconoce unos pocos tipos de mensaje (tu nombre, el tiempo de hoy, mañana o pasado mañana en 8 ciudades, porcentajes y cuentas) y usa datos del tiempo de ejemplo. Sí reproduce cómo trabaja n8n: la ventana de memoria por interacciones, las herramientas en paralelo dentro de una misma vuelta, el error de <em>Max Iterations</em> y el formato de <code>output</code> e <code>intermediateSteps</code>. Un modelo real entiende muchas más formas de preguntar (y a veces se equivoca).</p></div>
+
+    <h2 id="estructurada">Respuestas con formato: salida estructurada</h2>
+    <p>Un texto libre está bien para un chat, pero si la respuesta la va a usar el siguiente nodo (un If, una fila de Google Sheets) necesitas campos fijos. Para eso:</p>
+    <ol class="steps">
+      <li>En el AI Agent (o en una Basic LLM Chain) activa <strong>Require Specific Output Format</strong>. Aparece un conector <em>Output Parser</em>.</li>
+      <li>Conecta un <strong>Structured Output Parser</strong>. En <em>Schema Type</em>, <em>Generate From JSON Example</em> (por defecto) te deja pegar un ejemplo; <em>Define using JSON Schema</em>, un esquema completo con tipos y campos obligatorios.</li>
+      <li>Si el modelo a veces devuelve el formato mal, activa <strong>Auto-Fix Format</strong>: n8n le pide que lo corrija (es otra llamada, con su coste). Necesita conectar un modelo también al parser.</li>
+    </ol>
+    <div class="grid">
+      <div class="code" style="margin:0"><div class="h">JSON Example del parser<button class="copy" type="button">Copiar</button></div><pre><code>{
+  <span class="k">"categoria"</span>: <span class="s">"envio"</span>,
+  <span class="k">"urgente"</span>: <span class="v">true</span>,
+  <span class="k">"resumen"</span>: <span class="s">"El pedido 104 no ha llegado"</span>
+}</code></pre></div>
+      <div class="code" style="margin:0"><div class="h">Salida del agente<button class="copy" type="button">Copiar</button></div><pre><code>[
+  {
+    <span class="k">"output"</span>: {
+      <span class="k">"categoria"</span>: <span class="s">"devolucion"</span>,
+      <span class="k">"urgente"</span>: <span class="v">false</span>,
+      <span class="k">"resumen"</span>: <span class="s">"Quiere cambiar la talla"</span>
+    }
+  }
+]</code></pre></div>
+    </div>
+    <p>Los campos quedan dentro de <code>output</code>: en el siguiente nodo los usas con <code>{{ $json.output.categoria }}</code>. Con la salida estructurada, la IA se convierte en una pieza más del workflow: clasifica y, detrás, un Switch reparte por categoría como en el módulo 7.</p>
+    <div class="note tip"><p>Para extraer datos o clasificar, prueba también los nodos <strong>Information Extractor</strong> y <strong>Text Classifier</strong>: hacen lo mismo con menos configuración.</p></div>
+
+    <h2 id="buenas">Buenas prácticas</h2>
+    <ul class="lines">
+      <li><code>System Message</code><span>Escríbelo como si instruyeras a alguien nuevo: quién es, para quién trabaja, qué herramientas tiene y cuándo usar cada una (con su nombre exacto), cómo responder (idioma, longitud) y qué no debe hacer («si no lo sabes, dilo; no inventes»).</span></li>
+      <li><code>La fecha de hoy</code><span>El modelo no sabe qué día es. Si le preguntan por «mañana», dáselo en el System Message con una expresión: <code>Hoy es {{ $now.setLocale('es').toFormat('cccc d LLLL yyyy') }}</code>.</span></li>
+      <li><code>Pocas herramientas, bien descritas</code><span>Con 3 herramientas claras el agente acierta más que con 15 parecidas. Pon nombres que se entiendan («Consultar tiempo», no «HTTP Request1»).</span></li>
+      <li><code>Temperatura baja</code><span>Entre 0 y 0,3 cuando el agente usa herramientas o clasifica: responde de forma más estable.</span></li>
+      <li><code>Revisa los Logs</code><span>Cuando ejecutas, el panel <em>Logs</em> muestra cada llamada al modelo, a la memoria y a las herramientas, con los tokens usados. Es la primera parada cuando el agente hace algo raro.</span></li>
+      <li><code>Coste y privacidad</code><span>Cada mensaje envía al proveedor el System Message, la memoria y los resultados de las herramientas. Más memoria y más herramientas = más tokens. No envíes datos personales que no hagan falta, y menos aún en planes gratuitos.</span></li>
+      <li><code>Cuando algo falle</code><span>Los proveedores caen o se quedan sin cuota. Usa <em>Enable Fallback Model</em> o las opciones de reintento del nodo (<em>Settings → Retry On Fail</em>), que verás en el módulo 11.</span></li>
+    </ul>
+
+    <h2 id="practica">Práctica: asistente del tiempo</h2>
+    <p>Vas a construir un chat que responde en español sobre el tiempo de cualquier ciudad con datos reales de Open-Meteo (la API del módulo 8), recuerda la conversación y hace cálculos. Usa Google Gemini con el plan gratuito; si prefieres Ollama u OpenAI, cambia solo el sub-nodo del modelo.</p>
+    <div class="flow" data-flujo="practica"></div>
+    <div class="flows">
+      <p class="flows-t">Sub-nodos conectados al agente</p>
+      <div class="flow" data-flujo="subnodos"></div>
+    </div>
+
+    <h3>Parte A · El chat y el modelo</h3>
+    <ol class="steps">
+      <li><strong>Crea el workflow</strong> «Asistente del tiempo». Pulsa <em>Add first step</em>, busca <strong>Chat</strong> y elige <strong>On chat message</strong> (el nodo <em>Chat Trigger</em>). Renómbralo <strong>Al recibir un mensaje</strong>. No cambies nada más.</li>
+      <li><strong>Añade el agente.</strong> Pulsa el <strong>+</strong> de la salida del trigger, abre la categoría <strong>AI</strong> y elige <strong>AI Agent</strong>. Llámalo <strong>Asistente del tiempo</strong>. Comprueba que <em>Source for Prompt (User Message)</em> está en <em>Connected Chat Trigger Node</em>.</li>
+      <li><strong>Conecta el modelo.</strong> Debajo del agente, pulsa el <strong>+</strong> del conector <em>Chat Model</em> y elige <strong>Google Gemini Chat Model</strong>. Llámalo <strong>Gemini</strong>. Crea la credencial con tu clave de AI Studio (pestaña «Google Gemini» de arriba) y elige un modelo Flash. En <em>Options</em>, añade <em>Sampling Temperature</em> = <code>0.2</code>.</li>
+      <li><strong>Primer mensaje.</strong> Pulsa <strong>Open chat</strong> y escribe <code>Hola, ¿qué puedes hacer?</code>. El agente responde, quizás en inglés o con una respuesta genérica: aún no le has dicho quién es.</li>
+      <li><strong>Mira los Logs.</strong> En el panel de la derecha del chat verás el <em>AI Agent</em> y, dentro, la llamada al modelo con los tokens usados. Abre el AI Agent con doble clic: en <em>Output</em> está el campo <code>output</code>.</li>
+    </ol>
+
+    <h3>Parte B · Las instrucciones</h3>
+    <ol class="steps">
+      <li>En el agente, <em>Add Option</em> → <strong>System Message</strong>. Cámbialo a modo <em>Expression</em> (para que funcione <code>{{ }}</code>) y escribe:
+        <div class="code"><div class="h">System Message de «Asistente del tiempo»<button class="copy" type="button">Copiar</button></div><pre><code>Eres un asistente del tiempo. Respondes en español, con frases cortas y amables.
+Hoy es {{ $now.setLocale('es').toFormat("cccc, d 'de' LLLL 'de' yyyy") }}.
+
+Herramientas:
+- Consultar tiempo: previsión diaria de 7 días (máxima, mínima y lluvia) para unas coordenadas. Úsala siempre que te pregunten por el tiempo. Calcula tú la latitud y la longitud de la ciudad.
+- Calculator: úsala para cualquier cálculo.
+
+Si no sabes algo o una herramienta falla, dilo. No inventes datos.</code></pre></div>
+      </li>
+      <li>En la vista previa del campo comprueba que la fecha aparece en español, por ejemplo <em>viernes, 27 de noviembre de 2026</em>.</li>
+      <li>Vuelve al chat y pregunta <code>¿Qué tiempo hará mañana en Sevilla?</code>. Si el agente se inventa una previsión, has visto una alucinación en directo; si dice que no puede consultarlo, está siguiendo tus instrucciones. Todavía no tiene la herramienta.</li>
+    </ol>
+
+    <h3>Parte C · La memoria</h3>
+    <ol class="steps">
+      <li>Escribe <code>Me llamo Ana</code> y después <code>¿Cómo me llamo?</code>. Sin memoria, no lo sabe.</li>
+      <li>Pulsa el <strong>+</strong> del conector <em>Memory</em> y elige <strong>Simple Memory</strong>. Llámala <strong>Memoria</strong>. <em>Session ID</em>: <em>Connected Chat Trigger Node</em>; <em>Context Window Length</em>: <code>10</code>.</li>
+      <li>Repite las dos frases. Ahora sí responde «Ana». En <em>Logs</em> verás que, antes de llamar al modelo, el agente lee la <em>Memoria</em> y, al terminar, guarda la interacción.</li>
+      <li>Pulsa el botón de nueva sesión del chat y pregunta otra vez tu nombre: es otra conversación (otro <code>sessionId</code>), así que no lo sabe.</li>
+    </ol>
+
+    <h3>Parte D · Las herramientas</h3>
+    <ol class="steps">
+      <li><strong>Calculator.</strong> En el conector <em>Tool</em>, pulsa <strong>+</strong> y elige <strong>Calculator</strong>. No tiene parámetros.</li>
+      <li><strong>Consultar tiempo.</strong> Pulsa otra vez el <strong>+</strong> de <em>Tool</em>, busca <strong>HTTP Request</strong> y elige <strong>HTTP Request Tool</strong>. Llámalo <strong>Consultar tiempo</strong> y configúralo:
+        <ul class="lines">
+          <li><code>Tool Description</code><span><em>Set Manually</em> y, en <em>Description</em>: «Devuelve la previsión diaria de 7 días (temperatura máxima, mínima y lluvia en mm) de una ubicación. Necesita la latitud y la longitud.»</span></li>
+          <li><code>Method · URL</code><span><code>GET</code> · <code>https://api.open-meteo.com/v1/forecast</code></span></li>
+          <li><code>Send Query Parameters</code><span>Actívalo, con <em>Using Fields Below</em>, y añade los 5 parámetros de abajo.</span></li>
+        </ul>
+        <div class="scroll">
+        <table class="stack">
+          <thead><tr><th>Name</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td><code>latitude</code></td><td>En modo <em>Expression</em>: <code>{{ $fromAI('latitud', 'Latitud de la ciudad en grados decimales, por ejemplo 40.42', 'number') }}</code> (es lo mismo que pulsar <em>Let the model define this parameter</em> y escribir la descripción)</td></tr>
+            <tr><td><code>longitude</code></td><td><code>{{ $fromAI('longitud', 'Longitud de la ciudad en grados decimales, por ejemplo -3.70', 'number') }}</code></td></tr>
+            <tr><td><code>daily</code></td><td><code>temperature_2m_max,temperature_2m_min,precipitation_sum</code></td></tr>
+            <tr><td><code>timezone</code></td><td><code>auto</code></td></tr>
+            <tr><td><code>forecast_days</code></td><td><code>7</code></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </li>
+      <li><strong>Pruébalo.</strong> En el chat: <code>¿Qué tiempo hará mañana en Sevilla?</code>. En <em>Logs</em> verás que el modelo llama a <em>Consultar tiempo</em> con unas coordenadas (unas 37,39 y −5,98) y después responde con los datos de verdad.</li>
+      <li><strong>Usa la memoria con las herramientas.</strong> Escribe <code>¿Y en Bilbao?</code>: gracias a la memoria entiende que sigues hablando de mañana. Después, <code>¿Cuántos grados más hará en Sevilla que en Bilbao?</code>: debería usar <em>Calculator</em> con las dos máximas.</li>
+    </ol>
+
+    <h3>Parte E · Ver lo que piensa el agente</h3>
+    <ol class="steps">
+      <li>En el agente, <em>Add Option</em> → <strong>Return Intermediate Steps</strong> activado. Repite una pregunta del tiempo.</li>
+      <li>Abre el agente: la salida tiene ahora <code>intermediateSteps</code>, una lista con cada herramienta usada (<code>action.tool</code>), lo que le pidió (<code>action.toolInput</code>, con <code>latitud</code> y <code>longitud</code>) y lo que le devolvió (<code>observation</code>).</li>
+      <li>Haz el experimento del simulador: <em>Max Iterations</em> = <code>1</code> y pregunta el tiempo. El agente usa la herramienta y el nodo falla con <em>Max iterations (1) reached</em>. Vuelve a ponerlo en 10.</li>
+    </ol>
+
+    <h3>Parte F (opcional) · Un chat público</h3>
+    <ol class="steps">
+      <li>En el Chat Trigger activa <strong>Make Chat Publicly Available</strong>, con <em>Mode</em> = <em>Hosted Chat</em>. En <em>Initial Message(s)</em> escribe <code>¡Hola! Pregúntame por el tiempo de cualquier ciudad.</code></li>
+      <li>Pulsa <strong>Publish</strong>. Copia la URL del chat que aparece arriba en el nodo (termina en <code>/chat</code>) y ábrela en otra pestaña: ya tienes tu asistente fuera del editor. Las conversaciones aparecen en la pestaña <em>Executions</em>.</li>
+      <li>Si no lo vas a usar, despublica el workflow: un chat sin autenticación lo puede usar cualquiera que tenga el enlace.</li>
+    </ol>
+    <div class="note tip"><p>Prueba la misma conversación en el simulador de arriba: verás los mismos pasos (memoria, modelo, herramientas en paralelo, modelo) que en los <em>Logs</em> de n8n.</p></div>
+
+    <h2 id="solucion">Solución</h2>
+    <p>Copia y pega este workflow en un lienzo vacío para comparar con el tuyo. Al pegarlo, abre el nodo <strong>Gemini</strong> y elige tu credencial (y otro modelo si el de la solución ya no aparece en la lista).</p>
+    <div class="code"><div class="h">Workflow «Asistente del tiempo» (JSON para pegar en el lienzo)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "nodes": [
+    {
+      "parameters": {"options": {}},
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [0, 0],
+      "id": "f3a1c2d4-10aa-4b5c-9d8e-7f6a5b4c0001",
+      "name": "Al recibir un mensaje",
+      "webhookId": "5b8c2f1e-3d4a-4e6b-9a7c-1f2e3d4c5b6a"
+    },
+    {
+      "parameters": {
+        "options": {"systemMessage": "=Eres un asistente del tiempo. Respondes en español, con frases cortas y amables.\nHoy es {{ $now.setLocale('es').toFormat(\"cccc, d 'de' LLLL 'de' yyyy\") }}.\n\nHerramientas:\n- Consultar tiempo: previsión diaria de 7 días (máxima, mínima y lluvia) para unas coordenadas. Úsala siempre que te pregunten por el tiempo. Calcula tú la latitud y la longitud de la ciudad.\n- Calculator: úsala para cualquier cálculo.\n\nSi no sabes algo o una herramienta falla, dilo. No inventes datos."}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [260, 0],
+      "id": "f3a1c2d4-10aa-4b5c-9d8e-7f6a5b4c0002",
+      "name": "Asistente del tiempo"
+    },
+    {
+      "parameters": {"modelName": "models/gemini-3.8-flash", "options": {"temperature": 0.2}},
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [100, 220],
+      "id": "f3a1c2d4-10aa-4b5c-9d8e-7f6a5b4c0003",
+      "name": "Gemini"
+    },
+    {
+      "parameters": {"contextWindowLength": 10},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [260, 220],
+      "id": "f3a1c2d4-10aa-4b5c-9d8e-7f6a5b4c0004",
+      "name": "Memoria"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [420, 220],
+      "id": "f3a1c2d4-10aa-4b5c-9d8e-7f6a5b4c0005",
+      "name": "Calculator"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Devuelve la previsión diaria de 7 días (temperatura máxima, mínima y lluvia en mm) de una ubicación. Necesita la latitud y la longitud.",
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "queryParameters": {"parameters": [{"name": "latitude", "value": "={{ $fromAI('latitud', 'Latitud de la ciudad en grados decimales, por ejemplo 40.42', 'number') }}"}, {"name": "longitude", "value": "={{ $fromAI('longitud', 'Longitud de la ciudad en grados decimales, por ejemplo -3.70', 'number') }}"}, {"name": "daily", "value": "temperature_2m_max,temperature_2m_min,precipitation_sum"}, {"name": "timezone", "value": "auto"}, {"name": "forecast_days", "value": "7"}]},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [580, 220],
+      "id": "f3a1c2d4-10aa-4b5c-9d8e-7f6a5b4c0006",
+      "name": "Consultar tiempo"
+    }
+  ],
+  "connections": {
+    "Al recibir un mensaje": {"main": [[{"node": "Asistente del tiempo", "type": "main", "index": 0}]]},
+    "Gemini": {"ai_languageModel": [[{"node": "Asistente del tiempo", "type": "ai_languageModel", "index": 0}]]},
+    "Memoria": {"ai_memory": [[{"node": "Asistente del tiempo", "type": "ai_memory", "index": 0}]]},
+    "Calculator": {"ai_tool": [[{"node": "Asistente del tiempo", "type": "ai_tool", "index": 0}]]},
+    "Consultar tiempo": {"ai_tool": [[{"node": "Asistente del tiempo", "type": "ai_tool", "index": 0}]]}
+  }
+}</code></pre></div>
+
+    <h2 id="problemas">Problemas frecuentes</h2>
+    <div class="faq">
+      <details><summary>«Tools Agent requires Chat Model which supports Tools calling»</summary><div><p>El modelo elegido no sabe usar herramientas. Pasa mucho con modelos pequeños de Ollama. Elige otro modelo (en Ollama, uno con la etiqueta <em>tools</em>) o usa Gemini u OpenAI.</p></div></details>
+      <details><summary>«No prompt specified»</summary><div><p>El agente está en <em>Connected Chat Trigger Node</em>, pero lo has ejecutado desde otro trigger (por ejemplo, un Manual Trigger) y no le llega ningún <code>chatInput</code>. Cambia <em>Source for Prompt</em> a <em>Define below</em> y escribe el mensaje con una expresión.</p></div></details>
+      <details><summary>«No session ID found»</summary><div><p>La Simple Memory busca un <code>sessionId</code> que solo saca el Chat Trigger. Si el workflow empieza con otro trigger, cambia <em>Session ID</em> a <em>Define below</em> y pon una clave, por ejemplo <code>{{ $json.email }}</code> o un texto fijo para pruebas.</p></div></details>
+      <details><summary>Error 429 o «quota» con Gemini</summary><div><p>Has superado los límites del plan gratuito (por minuto o por día). Espera un minuto, mira tus límites en AI Studio o prueba un modelo <em>Flash-Lite</em>. Los modelos <em>preview</em> tienen límites más bajos.</p></div></details>
+      <details><summary>Ollama: «fetch failed» o «ECONNREFUSED 127.0.0.1:11434»</summary><div><p>En la credencial pusiste <code>http://localhost:11434</code>, pero n8n está en Docker y <code>localhost</code> es el contenedor. Usa <code>http://host.docker.internal:11434</code> (y en Linux añade <code>extra_hosts</code> al <code>compose.yml</code>). Comprueba también que Ollama está abierto.</p></div></details>
+      <details><summary>El agente no usa la herramienta y se inventa la respuesta</summary><div><p>Mejora la descripción de la herramienta y nómbrala en el System Message («usa Consultar tiempo siempre que…»). Baja la temperatura. Si el modelo es pequeño, activa <em>Force Tool Call on First Iteration</em> o prueba un modelo más capaz.</p></div></details>
+      <details><summary>«Max iterations (10) reached»</summary><div><p>El agente ha dado 10 vueltas pidiendo herramientas sin llegar a una respuesta: suele ser una herramienta que falla siempre (mira su resultado en <em>Logs</em>) o una descripción que le confunde. Arregla la causa antes de subir el límite.</p></div></details>
+      <details><summary>El agente ha olvidado la conversación</summary><div><p>Simple Memory guarda en la RAM: se vacía al reiniciar n8n y tras una hora sin uso. También olvida lo que queda fuera de la ventana (<em>Context Window Length</em>). Para conversaciones largas o permanentes usa <em>Postgres Chat Memory</em>.</p></div></details>
+    </div>
+
+    <h2 id="retos">Retos para practicar</h2>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Reto 1 · Memoria corta</h3><p style="margin:0">Pon <em>Context Window Length</em> = <code>1</code>. Di tu nombre, haz dos preguntas del tiempo y pregunta tu nombre. ¿Qué pasa y por qué?</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 2 · Clasificar mensajes</h3><p style="margin:0">En un workflow nuevo, con un Manual Trigger y un Edit Fields con un campo <code>mensaje</code>, haz que un AI Agent devuelva <code>categoria</code> (envio, devolucion u otro), <code>urgente</code> y <code>resumen</code> en JSON.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 3 · Más herramientas</h3><p style="margin:0">Añade la herramienta <em>Wikipedia</em> al asistente para que también pueda contar curiosidades de la ciudad. ¿Qué tienes que cambiar en el System Message?</p></div>
+    </div>
+    <details class="term"><summary><i>?</i>Ver las soluciones</summary>
+      <div class="code"><div class="h">Soluciones de los retos<button class="copy" type="button">Copiar</button></div><pre><code><span class="c">// Reto 1 · Con una ventana de 1 el modelo solo recibe la última interacción.</span>
+<span class="c">// Tu nombre estaba 3 interacciones atrás: ya no llega y responde que no lo sabe.</span>
+<span class="c">// La memoria sigue guardando todo; la ventana limita lo que se envía al modelo.</span>
+
+<span class="c">// Reto 2 · AI Agent</span>
+Source for Prompt: Define below
+Prompt: Clasifica este mensaje de un cliente: {{ $json.mensaje }}
+Require Specific Output Format: activado
+System Message: Clasificas mensajes de clientes de una tienda online.
+  categoria: envio, devolucion u otro. urgente: true si el cliente
+  está enfadado o el problema le impide usar el producto.
+<span class="c">// Structured Output Parser · Generate From JSON Example:</span>
+{ "categoria": "envio", "urgente": true, "resumen": "El pedido 104 no ha llegado" }
+<span class="c">// En el nodo siguiente: {{ $json.output.categoria }}</span>
+<span class="c">// (No hace falta memoria: cada mensaje es independiente.)</span>
+
+<span class="c">// Reto 3 · Conecta Wikipedia al conector Tool y añade al System Message:</span>
+- Wikipedia: para información general o curiosidades de una ciudad.
+  Busca con el nombre de la ciudad. Responde en español aunque el artículo esté en inglés.</code></pre></div>
+    </details>
+
+    <h3>Comprueba tu práctica</h3>
+    <ul class="check" id="checklist" data-ok="¡Genial! Ya sabes construir agentes de IA en n8n.">
+      <li><label><input type="checkbox"><span>Sé la diferencia entre un modelo, una cadena y un agente</span></label></li>
+      <li><label><input type="checkbox"><span>He creado la credencial de un modelo y lo he conectado al AI Agent</span></label></li>
+      <li><label><input type="checkbox"><span>He escrito un System Message con la fecha de hoy y las herramientas</span></label></li>
+      <li><label><input type="checkbox"><span>He usado Simple Memory y entiendo la sesión y la ventana de contexto</span></label></li>
+      <li><label><input type="checkbox"><span>He creado una herramienta con <code>$fromAI()</code> y una descripción propia</span></label></li>
+      <li><label><input type="checkbox"><span>He revisado en Logs y en <code>intermediateSteps</code> qué herramientas usó el agente</span></label></li>
+      <li><label><input type="checkbox"><span>Sé pedir una respuesta en JSON con el Structured Output Parser</span></label></li>
+    </ul>
+    <p class="check-msg" id="check-msg" aria-live="polite"></p>
+
+    <h2 id="test">Comprueba lo que has aprendido</h2>
+    <div id="quiz" class="quiz"></div>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="09-nodo-code.html">← Módulo 9: El nodo Code</a>
+      <a class="btn" href="11-errores.html">Módulo 11: Errores y depuración →</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Basado en la <a href="https://docs.n8n.io/">documentación oficial</a> de n8n 2.x · Revisado en noviembre de 2026</footer>
+
+<script>
+window.FLUJOS = {
+  ciclo: [
+    { tipo: 'trig', ico: '✉', t: 'Mensaje', d: 'chatInput + memoria' },
+    { tipo: 'ai', ico: 'IA', t: 'Modelo decide', d: '¿responder o usar una herramienta?' },
+    { ico: '⚙', t: 'Herramientas', d: 'n8n las ejecuta y devuelve el resultado' },
+    { tipo: 'ai', ico: 'IA', t: 'Modelo responde', d: 'o vuelve a pedir herramientas' }
+  ],
+  practica: [
+    { tipo: 'trig', ico: '✉', t: 'Al recibir un mensaje', d: 'Chat Trigger' },
+    { tipo: 'ai', ico: 'IA', t: 'Asistente del tiempo', d: 'AI Agent · output' }
+  ],
+  subnodos: [
+    { tipo: 'ai', ico: 'G', t: 'Gemini', d: 'Chat Model' },
+    { ico: '≡', t: 'Memoria', d: 'Simple Memory · 10' },
+    { ico: '±', t: 'Calculator', d: 'Tool' },
+    { ico: '☁', t: 'Consultar tiempo', d: 'HTTP Request Tool · Open-Meteo' }
+  ]
+};
+window.QUIZ = [
+  { p: 'Tienes que resumir en 3 frases cada email que llega. No hace falta conversar ni consultar nada. ¿Qué nodo raíz eliges?', o: ['AI Agent con memoria', 'Basic LLM Chain', 'Chat Trigger'], c: 1, e: 'Es una sola llamada al modelo: una cadena es más simple, más barata y más predecible. El agente es para conversar o decidir qué herramientas usar.' },
+  { p: 'Dices «me llamo Ana» y en el mensaje siguiente el agente no sabe tu nombre. ¿Qué falta lo más probable?', o: ['Un sub-nodo de memoria conectado al agente', 'Subir Max Iterations', 'Una herramienta Calculator'], c: 0, e: 'El modelo no recuerda nada entre llamadas. La memoria (Simple Memory, por ejemplo) guarda la conversación y se la pasa en cada mensaje.' },
+  { p: 'En una HTTP Request Tool, ¿cómo dejas que el modelo decida la ciudad que se envía a la API?', o: ['Con {{ $json.ciudad }}', 'Con {{ $fromAI(\'ciudad\', \'Nombre de la ciudad\') }}', 'Escribiéndolo en el System Message'], c: 1, e: '$fromAI() crea un parámetro que rellena el modelo cuando usa la herramienta. Es lo que escribe el botón «Let the model define this parameter».' },
+  { p: 'Pones Context Window Length = 3 en Simple Memory. ¿Qué significa?', o: ['Que solo guarda 3 conversaciones distintas', 'Que el modelo recibe las 3 últimas interacciones (pregunta + respuesta)', 'Que el agente puede usar 3 herramientas'], c: 1, e: 'La ventana limita cuántas interacciones anteriores se envían al modelo en cada mensaje. Lo más antiguo deja de llegarle.' },
+  { p: 'El agente responde con previsiones del tiempo que no coinciden con la realidad y en Logs no aparece ninguna herramienta. ¿Qué haces primero?', o: ['Subir la temperatura del modelo', 'Mejorar la descripción de la herramienta y nombrarla en el System Message', 'Quitar la memoria'], c: 1, e: 'Se está inventando los datos (alucina) porque no ha decidido usar la herramienta. Una buena descripción y unas instrucciones claras hacen que la use; una temperatura baja también ayuda.' },
+  { p: 'Activas Require Specific Output Format con un Structured Output Parser que define el campo categoria. ¿Cómo lo usas en el siguiente nodo?', o: ['{{ $json.categoria }}', '{{ $json.output.categoria }}', '{{ $json.intermediateSteps.categoria }}'], c: 1, e: 'La respuesta del agente siempre va en output; con salida estructurada, output es un objeto con tus campos.' }
+];
+</script>
+<script src="../js/main.js"></script>
+<script>
+{
+  /* ---- Simulador de agente ---- */
+  const $a = id => document.getElementById(id);
+  const raiz = $a('agentsim');
+  const r2 = n => Math.round(n * 100) / 100;
+  const coma = n => String(r2(n)).replace('.', ',');
+  const SYS = 'Eres un asistente del tiempo. Respondes en español, con frases cortas y amables.\nHoy es ' + (() => { try { return new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return 'hoy'; } })() + '.\n(… herramientas e instrucciones de la práctica …)';
+  const CIUDADES = {
+    madrid: { n: 'Madrid', lat: 40.42, lon: -3.7, max: [14, 12, 15], min: [4, 3, 5], ll: [0, 2.1, 0] },
+    barcelona: { n: 'Barcelona', lat: 41.39, lon: 2.17, max: [16, 17, 16], min: [10, 11, 9], ll: [1.4, 0, 0] },
+    valencia: { n: 'Valencia', lat: 39.47, lon: -0.38, max: [18, 19, 17], min: [11, 12, 10], ll: [0, 0, 0.6] },
+    sevilla: { n: 'Sevilla', lat: 37.39, lon: -5.98, max: [20, 19, 21], min: [9, 9, 10], ll: [0, 0, 0] },
+    bilbao: { n: 'Bilbao', lat: 43.26, lon: -2.93, max: [12, 11, 13], min: [7, 6, 8], ll: [6.2, 9.8, 3.1] },
+    zaragoza: { n: 'Zaragoza', lat: 41.65, lon: -0.88, max: [13, 11, 14], min: [3, 2, 4], ll: [0, 0, 0] },
+    malaga: { n: 'Málaga', lat: 36.72, lon: -4.42, max: [21, 20, 21], min: [12, 12, 13], ll: [0, 0, 0] },
+    paris: { n: 'París', lat: 48.86, lon: 2.35, max: [9, 8, 10], min: [3, 2, 4], ll: [3.4, 5.1, 0.2] }
+  };
+  const DIA = ['hoy', 'mañana', 'pasado mañana'];
+  const fechas = () => [0, 1, 2].map(i => { const d = new Date(); d.setDate(d.getDate() + i); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); });
+  const sinTildes = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const pl = (n, s, p) => n + ' ' + (n === 1 ? s : p);
+  const nuevaSesion = () => Array.from({ length: 32 }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
+
+  let sesion = nuevaSesion();
+  let historial = []; // interacciones guardadas en la memoria: { human, ai }
+
+  /* ---- Herramientas ---- */
+  const toolTiempo = input => {
+    const c = Object.values(CIUDADES).find(x => Math.abs(x.lat - input.latitud) < 0.05 && Math.abs(x.lon - input.longitud) < 0.05);
+    return JSON.stringify({ latitude: c.lat, longitude: c.lon, timezone: 'Europe/Madrid', daily: { time: fechas(), temperature_2m_max: c.max, temperature_2m_min: c.min, precipitation_sum: c.ll } });
+  };
+  const toolCalc = input => {
+    const e = String(input.input);
+    if (!/^[\d\s.+\-*/()]+$/.test(e)) return 'Error: expresión no válida';
+    try { return String(r2(Function('"use strict";return (' + e + ')')())); } catch (err) { return 'Error: ' + err.message; }
+  };
+
+  /* ---- «Modelo» simulado: decide la siguiente acción ---- */
+  const leer = (texto, hist) => {
+    const t = sinTildes(texto);
+    const ctx = { ciudades: [], dia: null };
+    // Contexto de la conversación (lo que el modelo ve en la memoria)
+    let ultCiudades = [], ultDia = 0, ultTiempo = false;
+    hist.forEach(h => {
+      const ht = sinTildes(h.human);
+      const cs = Object.keys(CIUDADES).filter(k => ht.includes(k));
+      const esT = /tiempo|llov|lluev|lluvia|grados|temperatura|frio|calor|maxima|minima/.test(ht) || (cs.length && ultTiempo);
+      if (cs.length) ultCiudades = cs;
+      if (/pasado manana/.test(ht)) ultDia = 2; else if (/manana/.test(ht)) ultDia = 1; else if (/\bhoy\b/.test(ht)) ultDia = 0;
+      ultTiempo = esT;
+    });
+    ctx.ciudades = Object.keys(CIUDADES).filter(k => t.includes(k)).sort((a, b) => t.indexOf(a) - t.indexOf(b));
+    if (/pasado manana/.test(t)) ctx.dia = 2; else if (/manana/.test(t)) ctx.dia = 1; else if (/\bhoy\b/.test(t)) ctx.dia = 0;
+    const palabraTiempo = /tiempo|llov|lluev|lluvia|grados|temperatura|frio|calor|maxima|minima/.test(t);
+    const seguimiento = !palabraTiempo && ultTiempo && (ctx.ciudades.length || ctx.dia !== null) && /^\s*(y|¿y)\b|\by\s+(en|para|manana|hoy|pasado)/.test(t.replace(/^¿/, ''));
+    const nombre = texto.match(/me llamo\s+([A-Za-zÁÉÍÓÚÑÜáéíóúñü]+)/i);
+    if (nombre) return { tipo: 'nombre', nombre: nombre[1][0].toUpperCase() + nombre[1].slice(1) };
+    if (/como me llamo|sabes mi nombre|cual es mi nombre/.test(t)) {
+      let n = null;
+      hist.forEach(h => { const m = h.human.match(/me llamo\s+([A-Za-zÁÉÍÓÚÑÜáéíóúñü]+)/i); if (m) n = m[1][0].toUpperCase() + m[1].slice(1); });
+      return { tipo: 'pregNombre', nombre: n };
+    }
+    if (palabraTiempo || seguimiento) {
+      const otra = !ctx.ciudades.length && /\ben\s+([a-zñ]{3,})/.exec(t);
+      if (otra && !['manana', 'pasado'].includes(otra[1])) return { tipo: 'sinCiudad', ciudad: texto.slice(otra.index + 3, otra.index + 3 + otra[1].length) };
+      let cs = ctx.ciudades.length ? ctx.ciudades : ultCiudades;
+      const dia = ctx.dia !== null ? ctx.dia : (ultTiempo ? ultDia : 0);
+      if (!cs.length) return { tipo: 'sinCiudad', ciudad: null };
+      const compara = cs.length >= 2 && /mas|menos|diferencia/.test(t);
+      if (!compara) cs = cs.slice(0, 2);
+      return { tipo: compara ? 'compara' : 'tiempo', ciudades: compara ? cs.slice(0, 2) : cs, dia };
+    }
+    const pct = t.match(/(\d+(?:[.,]\d+)?)\s*%\s*de\s*(\d+(?:[.,]\d+)?)/);
+    if (pct) return { tipo: 'calc', expr: pct[2].replace(',', '.') + ' * ' + pct[1].replace(',', '.') + ' / 100' };
+    const cuenta = texto.replace(/[x×]/g, '*').replace(/÷/g, '/').match(/\d[\d\s.,+\-*/()]*[+\-*/]\s*[\d(][\d\s.,+\-*/()]*/);
+    if (cuenta) return { tipo: 'calc', expr: cuenta[0].replace(/,/g, '.').replace(/\s+/g, ' ').trim() };
+    if (/^\s*(hola|buenas|buenos dias|buenas tardes)/.test(t)) return { tipo: 'saludo' };
+    return { tipo: 'otro' };
+  };
+
+  const describir = (c, d) => {
+    const ll = c.ll[d];
+    return `${DIA[d][0].toUpperCase() + DIA[d].slice(1)} en ${c.n}: máxima de ${coma(c.max[d])} °C y mínima de ${coma(c.min[d])} °C, ${ll > 0 ? 'con ' + coma(ll) + ' mm de lluvia' : 'sin lluvia'}.`;
+  };
+
+  /* ---- Ejecución de un mensaje (el ciclo del agente) ---- */
+  const ejecutar = texto => {
+    const cfg = { mem: $a('as-mem').checked, win: Math.min(10, Math.max(1, parseInt($a('as-win').value, 10) || 1)), calc: $a('as-calc').checked, tiempo: $a('as-tiempo').checked, max: Math.min(10, Math.max(1, parseInt($a('as-max').value, 10) || 1)), steps: $a('as-steps').checked };
+    const hist = cfg.mem ? historial.slice(-cfg.win) : [];
+    const tools = [cfg.calc && 'Calculator', cfg.tiempo && 'Consultar_tiempo'].filter(Boolean);
+    const log = [];
+    const pasos = [];
+    let llamadas = 0, vueltas = 0, nota = '', error = null;
+    if (cfg.mem) log.push({ c: 'mem', t: 'Memoria', d: `Lee la sesión ${sesion.slice(0, 8)}…: ${pl(historial.length, 'interacción guardada', 'interacciones guardadas')}, envía ${hist.length} al modelo (ventana = ${cfg.win}).` });
+
+    const prompt = ['System: ' + SYS];
+    hist.forEach(h => { prompt.push('Human: ' + h.human); prompt.push('AI: ' + h.ai); });
+    prompt.push('Human: ' + texto);
+    prompt.push('[Herramientas disponibles: ' + (tools.length ? tools.join(', ') : 'ninguna') + ']');
+
+    const intento = leer(texto, hist);
+    const llamarModelo = desc => { llamadas++; log.push({ c: 'mdl', t: `Gemini · llamada ${llamadas}`, d: desc }); };
+    // Una vuelta: el modelo pide herramientas, n8n las ejecuta
+    const vuelta = peticiones => {
+      llamarModelo('Pide ' + peticiones.map(p => `${p.tool}(${JSON.stringify(p.toolInput)})`).join(' y ') + (peticiones.length > 1 ? ' a la vez' : '') + '.');
+      peticiones.forEach(p => {
+        const obs = p.tool === 'Calculator' ? toolCalc(p.toolInput) : toolTiempo(p.toolInput);
+        pasos.push({ action: { tool: p.tool, toolInput: p.toolInput }, observation: obs });
+        log.push({ c: 'tool', t: p.tool === 'Calculator' ? 'Calculator' : 'Consultar tiempo', d: 'Devuelve ' + (obs.length > 150 ? obs.slice(0, 150) + '…' : obs) });
+        prompt.push(`AI → ${p.tool} ${JSON.stringify(p.toolInput)}`);
+        prompt.push('Tool: ' + (obs.length > 150 ? obs.slice(0, 150) + '…' : obs));
+      });
+      vueltas++;
+      if (vueltas >= cfg.max) throw new Error(`Max iterations (${cfg.max}) reached. The agent could not complete the task within the allowed number of iterations.`);
+    };
+
+    let respuesta = '';
+    try {
+      switch (intento.tipo) {
+        case 'nombre': respuesta = `¡Encantado, ${intento.nombre}! Pregúntame por el tiempo de cualquier ciudad.`; break;
+        case 'pregNombre':
+          if (intento.nombre) respuesta = `Te llamas ${intento.nombre}.`;
+          else {
+            respuesta = 'No lo sé: no me has dicho tu nombre en esta conversación.';
+            nota = !cfg.mem ? 'Sin memoria, el modelo solo recibe el mensaje actual: no puede saber lo que dijiste antes.'
+              : historial.some(h => /me llamo/i.test(h.human)) ? `Tu nombre está guardado en la memoria, pero fuera de la ventana: el modelo solo recibe ${cfg.win === 1 ? 'la última interacción' : 'las ' + cfg.win + ' últimas interacciones'}.` : '';
+          }
+          break;
+        case 'saludo': respuesta = '¡Hola! Puedo darte la previsión de una ciudad para hoy, mañana o pasado mañana, y hacer cálculos. ¿Qué ciudad te interesa?'; break;
+        case 'sinCiudad': respuesta = intento.ciudad ? `No tengo datos de «${intento.ciudad}» en este simulador. Prueba con Madrid, Barcelona, Valencia, Sevilla, Bilbao, Zaragoza, Málaga o París.` : '¿De qué ciudad quieres saber el tiempo?'; break;
+        case 'tiempo':
+        case 'compara': {
+          const cs = intento.ciudades.map(k => CIUDADES[k]);
+          if (!cfg.tiempo) {
+            respuesta = 'Lo siento, no puedo consultar la previsión del tiempo: no tengo acceso a datos actualizados.';
+            nota = 'Sin la herramienta, el modelo solo sabe lo que aprendió al entrenarse. Con un buen System Message lo reconoce; sin él, muchos modelos se inventan una previsión.';
+            break;
+          }
+          vuelta(cs.map(c => ({ tool: 'Consultar_tiempo', toolInput: { latitud: c.lat, longitud: c.lon } })));
+          if (intento.tipo === 'tiempo') { respuesta = cs.map(c => describir(c, intento.dia)).join(' '); break; }
+          const [a, b] = cs, d = intento.dia;
+          let dif;
+          if (cfg.calc) { vuelta([{ tool: 'Calculator', toolInput: { input: `${a.max[d]} - ${b.max[d]}` } }]); dif = Number(pasos[pasos.length - 1].observation); }
+          else { dif = a.max[d] - b.max[d]; nota = 'Sin Calculator, el modelo hace la resta «de cabeza». Con números sencillos suele acertar, pero no es fiable.'; }
+          respuesta = `${DIA[d][0].toUpperCase() + DIA[d].slice(1)} la máxima en ${a.n} será de ${coma(a.max[d])} °C y en ${b.n} de ${coma(b.max[d])} °C: ${dif >= 0 ? coma(dif) + ' grados más en ' + a.n : coma(-dif) + ' grados más en ' + b.n}.`;
+          break;
+        }
+        case 'calc': {
+          let res;
+          if (cfg.calc) { vuelta([{ tool: 'Calculator', toolInput: { input: intento.expr } }]); res = pasos[pasos.length - 1].observation; }
+          else { res = toolCalc({ input: intento.expr }); nota = 'Sin Calculator, el modelo calcula «de cabeza»: aquí acierta, pero con números largos los modelos se equivocan a menudo.'; }
+          respuesta = /^Error/.test(res) ? 'No he podido hacer ese cálculo. ¿Puedes escribirlo de otra forma?' : `El resultado es ${String(res).replace('.', ',')}.`;
+          break;
+        }
+        default:
+          respuesta = 'Soy un asistente del tiempo: puedo darte la previsión de una ciudad para hoy, mañana o pasado mañana, y hacer cálculos. ¿Te ayudo con eso?';
+          if (/^\s*¿?\s*y\b/i.test(texto)) nota = cfg.mem && !historial.length ? 'La conversación es nueva: la memoria aún está vacía y el modelo no sabe a qué te refieres.' : cfg.mem ? 'El modelo no encuentra en la memoria de qué estabais hablando: puede que quede fuera de la ventana.' : 'Sin memoria, el modelo no sabe de qué estabais hablando: «¿Y en…?» no tiene sentido por sí solo.';
+      }
+      llamarModelo('Responde al usuario.');
+    } catch (e) { error = e.message; }
+
+    if (!error && cfg.mem) { historial.push({ human: texto, ai: respuesta }); log.push({ c: 'mem', t: 'Memoria', d: `Guarda la interacción (${historial.length} en la sesión).` }); }
+    if (error) log.push({ c: 'err', t: 'AI Agent', d: error });
+    return { respuesta, log, pasos, error, nota, prompt: prompt.join('\n'), cfg, vueltas, llamadas };
+  };
+
+  /* ---- Pintar ---- */
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const burbuja = (quien, txt, extra) => {
+    const p = document.createElement('p');
+    p.className = 'as-b ' + quien + (extra ? ' ' + extra : '');
+    p.textContent = txt;
+    $a('as-msgs').appendChild(p);
+    $a('as-msgs').scrollTop = $a('as-msgs').scrollHeight;
+  };
+  const pintarSesion = () => { $a('as-sess').textContent = 'sesión ' + sesion.slice(0, 8) + '…'; };
+  const enviar = texto => {
+    texto = texto.trim();
+    if (!texto) return;
+    burbuja('yo', texto);
+    const r = ejecutar(texto);
+    if (r.error) burbuja('ia', 'Error: ' + r.error, 'bad'); else burbuja('ia', r.respuesta);
+    $a('as-log').innerHTML = r.log.map(l => `<li class="${l.c}"><b>${esc(l.t)}</b><span>${esc(l.d)}</span></li>`).join('');
+    $a('as-st').textContent = r.error ? 'Error' : `${r.llamadas} llamada${r.llamadas === 1 ? '' : 's'} al modelo · ${r.vueltas} iteraci${r.vueltas === 1 ? 'ón' : 'ones'} con herramientas`;
+    $a('as-st').className = 'hook-st ' + (r.error ? 'bad' : 'ok');
+    const msg = $a('as-msg');
+    msg.textContent = r.error ? `El agente ha llegado al límite de ${pl(r.cfg.max, 'vuelta', 'vueltas')} con herramientas antes de poder responder. Sube Max Iterations.` : r.nota;
+    msg.className = 'hook-msg' + (r.error ? ' bad' : r.nota ? ' warn' : '');
+    $a('as-prompt').textContent = r.prompt;
+    raiz.classList.toggle('fail', !!r.error);
+    if (r.error) {
+      $a('as-out').textContent = JSON.stringify({ error: r.error }, null, 2);
+    } else {
+      const out = { output: r.respuesta };
+      if (r.cfg.steps) out.intermediateSteps = r.pasos;
+      $a('as-out').textContent = JSON.stringify([out], null, 2);
+    }
+  };
+
+  $a('as-form').addEventListener('submit', e => { e.preventDefault(); enviar($a('as-in').value); $a('as-in').value = ''; });
+  $a('as-new').addEventListener('click', () => {
+    sesion = nuevaSesion(); historial = [];
+    $a('as-msgs').innerHTML = ''; pintarSesion();
+    burbuja('sis', 'Nueva sesión: la memoria empieza vacía.');
+  });
+  const EJ = ['Hola, me llamo Ana', '¿Qué tiempo hará mañana en Sevilla?', '¿Y en Bilbao?', '¿Cuántos grados más hará mañana en Sevilla que en Bilbao?', '¿Cuánto es el 15 % de 240?', '¿Cómo me llamo?', '¿Va a llover hoy en París?', 'Cuéntame un chiste'];
+  $a('as-chips').innerHTML = EJ.map(t => `<button type="button">${esc(t)}</button>`).join('');
+  $a('as-chips').addEventListener('click', e => { const b = e.target.closest('button'); if (b) enviar(b.textContent); });
+  pintarSesion();
+  burbuja('sis', 'Escribe un mensaje o pulsa uno de los ejemplos de abajo.');
+}
+</script>
+</body>
+</html>

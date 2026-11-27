@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo 11 · Errores y depuración en n8n: ejecuciones, reintentos y Error Trigger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body data-page="m11" data-root="../">
+<header class="top">
+  <a class="logo" href="../index.html" aria-label="Inicio del tutorial">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ea4b71"/><circle cx="9" cy="16" r="3.2" fill="#fff"/><circle cx="23" cy="10" r="3.2" fill="#fff"/><circle cx="23" cy="22" r="3.2" fill="#fff"/><path d="M12 16c4 0 4-6 8-6M12 16c4 0 4 6 8 6" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    Aprende n8n
+  </a>
+  <div class="prog"><span>0 módulos completados</span><div class="bar"><i></i></div></div>
+</header>
+
+<div class="wrap">
+  <nav class="side" id="indice" aria-label="Módulos"></nav>
+  <main>
+    <span class="kicker">Módulo 11 · 60 minutos</span>
+    <h1>Errores y depuración</h1>
+    <p class="lead">Tarde o temprano algo falla: una API no responde, cambia un campo o caduca una credencial. La diferencia entre un workflow de juguete y uno de verdad es qué pasa entonces. En este módulo aprendes a encontrar y leer los errores, a reintentar lo que falla de forma pasajera, a desviar los errores por otra rama y a recibir un aviso cuando un workflow se rompe mientras tú no miras.</p>
+    <nav class="toc" aria-label="En esta página">
+      <a href="#tipos">Tipos de error</a><a href="#leer">Leer un error</a><a href="#ejecuciones">Executions</a><a href="#depurar">Depurar</a><a href="#ajustes-nodo">Ajustes del nodo</a><a href="#stop">Stop and Error</a><a href="#error-workflow">Error workflow</a><a href="#ajustes-workflow">Ajustes del workflow</a><a href="#simulador">Simulador</a><a href="#logs">Logs del servidor</a><a href="#practica">Práctica</a><a href="#solucion">Solución</a><a href="#problemas">Problemas</a><a href="#test">Test</a>
+    </nav>
+
+    <div class="note info"><p>Basado en la documentación y el código de <strong>n8n 2.x</strong> (estable 2.49.8 a finales de noviembre de 2026): ajustes de nodo del motor <code>n8n-core</code>, <em>Error Trigger</em> 1, <em>Stop and Error</em> 1 y <em>HTTP Request</em> 4.5. La práctica usa <code>httpbin.org</code> para provocar errores a propósito, sin cuentas ni claves.</p></div>
+
+    <h2 id="tipos">¿Qué puede fallar?</h2>
+    <p>No todos los errores son iguales, y no todos se arreglan igual. Antes de tocar nada, pregúntate de qué tipo es:</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Tipo</th><th>Ejemplos</th><th>Qué hacer</th></tr></thead>
+      <tbody>
+        <tr><td>Pasajero</td><td>Servicio caído un momento (503), demasiadas peticiones (429), red lenta, tiempo agotado</td><td>Reintentar: <em>Retry On Fail</em></td></tr>
+        <tr><td>De datos</td><td>Un item sin email, una fecha mal escrita, una URL que no existe (404)</td><td>Separar ese item por otra rama (<em>On Error</em>) o filtrarlo antes</td></tr>
+        <tr><td>De configuración</td><td>Credencial caducada (401), permiso que falta (403), campo mal escrito en una expresión</td><td>Arreglar el workflow; reintentar no sirve</td></tr>
+        <tr><td>De lógica</td><td>El workflow termina «bien» pero hace algo que no debería (0 items, un total que no cuadra)</td><td>Provocar tú el error con <em>Stop and Error</em> para enterarte</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Por defecto, cuando un nodo falla, <strong>se para todo el workflow</strong> y la ejecución queda marcada como fallida. Es lo más seguro: mejor parar que enviar 500 emails con datos a medias. Pero muchas veces querrás otra cosa, y para eso están los ajustes de este módulo.</p>
+
+    <h2 id="leer">Leer un error</h2>
+    <p>Cuando un nodo falla en el editor, se pone en rojo con un triángulo de aviso. Ábrelo: en el panel <em>Output</em> aparece el error en lugar de los datos.</p>
+    <div class="code"><div class="h">Lo que ves en el panel Output (resumido)<button class="copy" type="button">Copiar</button></div><pre><code><span class="k">The resource you are requesting could not be found</span>   <span class="c">← mensaje: qué ha pasado</span>
+(debajo, a veces, una descripción con más detalle)
+
+<span class="v">Error details</span>
+  From Comprobar web            <span class="c">← nodo que falló</span>
+  HTTP Code     404             <span class="c">← código HTTP</span>
+  Full message  …               <span class="c">← respuesta completa del servicio</span>
+  Request       { "method": "GET", "uri": "https://httpbin.org/status/404", … }
+<span class="v">Other info</span>
+  Item Index    1               <span class="c">← qué item lo provocó (empieza en 0)</span>
+  Node type · Node version · n8n version · Time</code></pre></div>
+    <ul class="lines">
+      <li><code>Mensaje</code><span>Lo primero que tienes que leer. En los errores HTTP, n8n traduce el código a una frase: 401 «Authorization failed», 404 «could not be found», 429 «too many requests», 503 «Service unavailable – … consider setting this node to retry automatically». La tabla completa está en el módulo 8.</span></li>
+      <li><code>Item Index</code><span>Qué item falló (empezando por 0). Si 99 items van bien y uno falla, aquí sabes cuál: búscalo en el panel <em>Input</em>.</span></li>
+      <li><code>Request</code><span>En nodos que llaman a una API, la petición exacta que se envió (con las credenciales ocultas). Compárala con la documentación de la API.</span></li>
+      <li><code>Copy to Clipboard</code><span>Copia todos los detalles para pedir ayuda (en el foro de n8n, por ejemplo). Revisa antes que no lleven datos personales.</span></li>
+    </ul>
+    <div class="note tip"><p>Un truco que ahorra horas: lee el mensaje <strong>en voz alta</strong> y traduce cada palabra. «Cannot read properties of undefined (reading 'email')» significa «he intentado leer <code>email</code> dentro de algo que no existe»: el campo de arriba se llama distinto o falta en ese item.</p></div>
+
+    <h2 id="ejecuciones">El historial: pestaña Executions</h2>
+    <p>Cada vez que un workflow se ejecuta, n8n guarda una <strong>ejecución</strong> (<em>execution</em>): qué datos entraron y salieron de cada nodo, cuánto tardó y si falló. Las ves en la pestaña <strong>Executions</strong> de cada workflow (arriba, junto a <em>Editor</em>) o en <em>Overview → Executions</em> para todos.</p>
+    <ul class="lines">
+      <li><code>Estados</code><span><em>Success</em> (bien), <em>Error</em> (falló), <em>Running</em> (en marcha), <em>Waiting</em> (en un nodo Wait o esperando un webhook), <em>Canceled</em> (la paraste tú) y <em>Success retry</em> (falló, pero un reintento posterior salió bien).</span></li>
+      <li><code>Filters</code><span>Filtra por estado, fecha o workflow. Activa <em>Auto refresh</em> para ver las nuevas mientras llegan.</span></li>
+      <li><code>Abrir una ejecución</code><span>Muestra el workflow tal como estaba, en solo lectura, con los datos de cada nodo. Haz doble clic en un nodo para ver su <em>Input</em> y su <em>Output</em> de ese momento. El nodo que falló sale en rojo.</span></li>
+      <li><code>Retry execution</code><span>En una ejecución fallida, vuelve a lanzarla desde el nodo que falló con los mismos datos de entrada: <em>Retry with current version</em> (con tus cambios, para cuando ya lo has arreglado) o <em>Retry with original version</em> (exactamente como estaba, para fallos pasajeros). Útil cuando un servicio estuvo caído un rato.</span></li>
+    </ul>
+    <div class="note warn"><p>Las ejecuciones manuales (las que lanzas con <em>Execute workflow</em>) también se guardan, pero lo importante son las de <strong>producción</strong>: las que lanzan los triggers de un workflow publicado mientras no estás delante. Ahí no ves el lienzo en rojo: o miras <em>Executions</em>, o te avisa un <em>error workflow</em> (más abajo).</p></div>
+
+    <h2 id="depurar">Depurar: encontrar dónde y por qué</h2>
+    <ol class="steps">
+      <li><strong>Localiza el nodo.</strong> En la ejecución fallida, el nodo rojo es donde se detuvo. Pero el culpable puede estar antes: mira su <em>Input</em>. ¿Llegan los datos que esperabas?</li>
+      <li><strong>Reproduce el fallo en el editor.</strong> Con <strong>Debug in editor</strong> (en la ejecución fallida) n8n copia los datos de esa ejecución en tu workflow y los fija (<em>pin</em>) en el primer nodo. Así repites el fallo con los mismos datos, sin esperar al trigger ni llamar otra vez a la API. En ejecuciones correctas el botón se llama <em>Copy to editor</em>.</li>
+      <li><strong>Prueba nodo a nodo.</strong> Con <em>Execute step</em> ejecutas solo hasta ese nodo. Fija (<em>Pin data</em>, tecla <kbd>P</kbd>) la salida de los nodos lentos o caros para no repetirlos en cada prueba.</li>
+      <li><strong>Mira dentro de las expresiones.</strong> En el editor de expresiones, la vista previa enseña el resultado del item seleccionado. Si sale <code>undefined</code> o <code>[null]</code>, ahí está el problema.</li>
+      <li><strong>Corrige, ejecuta y quita los pins.</strong> Cuando funcione, despinea los datos (<em>Unpin</em>) y prueba con datos reales antes de publicar.</li>
+    </ol>
+    <div class="note info"><p><strong>Debug in editor</strong> está disponible en todos los planes de n8n Cloud y, en una instalación propia, en la <em>Community Edition</em> registrada (gratis: n8n te ofrece registrarla con tu email y te envía una clave de licencia). Sin registrar, al pulsarlo aparece un aviso para mejorar el plan. Siempre puedes copiar a mano la salida de un nodo de la ejecución y pegarla como datos fijos en el editor.</p></div>
+    <p>Para ejecutar un trozo sin borrar nada, desactiva temporalmente un nodo: selecciónalo y pulsa <kbd>D</kbd> (<em>Deactivate</em>). Los datos pasan a través de él sin cambios. Y para dejar pistas a quien venga detrás (o a ti), usa <em>Settings → Notes</em> con <em>Display Note in Flow?</em>: la nota aparece bajo el nodo en el lienzo.</p>
+
+    <h2 id="ajustes-nodo">Ajustes del nodo para errores</h2>
+    <p>Todos los nodos tienen una pestaña <strong>Settings</strong> junto a <em>Parameters</em>. Ahí están las cuatro opciones que deciden qué pasa cuando ese nodo falla.</p>
+    <h3>Retry On Fail: reintentar</h3>
+    <p>Si el nodo falla, n8n espera un poco y lo vuelve a ejecutar <strong>entero</strong> (con todos sus items, no solo el que falló).</p>
+    <ul class="lines">
+      <li><code>Max. Tries</code><span>Intentos en total, contando el primero. Por defecto 3; entre 2 y 5.</span></li>
+      <li><code>Wait Between Tries (ms)</code><span>Espera entre intentos, en milisegundos. Por defecto 1000 (1 segundo); máximo 5000.</span></li>
+    </ul>
+    <p>Es la solución para los errores <strong>pasajeros</strong> (503, 429, cortes de red). Para un 404 o un 401 no sirve: el tercer intento falla igual que el primero, solo que más tarde.</p>
+    <div class="note warn"><p>Ojo con los nodos que <strong>hacen cosas</strong>: si un nodo envía 10 emails y falla en el octavo, al reintentar vuelve a enviar los 10. Para estos casos, procesa de uno en uno (con <em>Loop Over Items</em>, módulo 7) o reintenta solo lo seguro, como leer datos.</p></div>
+    <h3>On Error: qué hacer si falla</h3>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Opción</th><th>Qué pasa</th><th>Cuándo usarla</th></tr></thead>
+      <tbody>
+        <tr><td>Stop Workflow</td><td>Por defecto. El workflow se para y la ejecución queda como <em>Error</em></td><td>Cuando un fallo debe detenerlo todo</td></tr>
+        <tr><td>Continue</td><td>El workflow sigue. Los items que fallan salen por la salida normal, mezclados con los buenos, con un campo <code>error</code></td><td>Cuando un fallo no importa mucho y lo tratas después con un If</td></tr>
+        <tr><td>Continue (using error output)</td><td>Aparece una segunda salida, <strong>error</strong>. Los items buenos salen por <em>Success</em> y los que fallan por <em>Error</em>, con sus datos de entrada más el error</td><td>La más útil: tratas cada caso por su rama</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Con <em>Continue (using error output)</em>, un item que falla en el HTTP Request sale por la rama de error con sus campos de entrada y dos campos nuevos:</p>
+    <div class="code"><div class="h">Item en la salida «Error» del HTTP Request 4.5 (resumido)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  <span class="k">"nombre"</span>: <span class="s">"Tienda"</span>,                           <span class="c">← datos de entrada</span>
+  <span class="k">"url"</span>: <span class="s">"https://httpbin.org/status/404"</span>,
+  <span class="k">"error"</span>: { … },                                <span class="c">← el error original, completo</span>
+  <span class="k">"details"</span>: {                                   <span class="c">← resumen fácil de usar</span>
+    <span class="k">"message"</span>: <span class="s">"The resource you are requesting could not be found"</span>,
+    <span class="k">"httpCode"</span>: <span class="s">"404"</span>,
+    <span class="k">"body"</span>: <span class="s">""</span>
+  }
+}</code></pre></div>
+    <p>En el nodo siguiente usas <code>{{ $json.details.message }}</code> y <code>{{ $json.details.httpCode }}</code>. Con <em>Continue</em> a secas, el item de error lleva solo <code>error</code> y <code>details</code>: los datos de entrada no vienen, y tendrías que recuperarlos con <code>$('Nodo anterior').item</code>.</p>
+    <div class="note warn"><p>Con cualquiera de las dos opciones <em>Continue</em>, el nodo ya no «falla»: la ejecución termina como <em>Success</em> aunque la mitad de los items tengan error. Eso significa que <strong>no se dispara el error workflow</strong>. Si quieres enterarte, añade un <em>Stop and Error</em> en la rama de error.</p></div>
+    <h3>Always Output Data y Execute Once</h3>
+    <ul class="lines">
+      <li><code>Always Output Data</code><span>Si el nodo no saca ningún item (un Filter que lo descarta todo, una búsqueda sin resultados), saca uno vacío <code>{}</code> para que el workflow no se pare ahí. Útil para avisar de «hoy no hay nada». Cuidado: el item vacío llega a los nodos siguientes y puede provocar errores raros si no lo esperan.</span></li>
+      <li><code>Execute Once</code><span>El nodo se ejecuta una sola vez, con el primer item. Evita, por ejemplo, enviar el mismo aviso 20 veces porque llegan 20 items.</span></li>
+    </ul>
+
+    <h2 id="stop">Fallar a propósito: Stop and Error</h2>
+    <p>A veces nada «falla», pero el resultado está mal: la API devolvió 0 pedidos un lunes, o un total es negativo. El nodo <strong>Stop and Error</strong> para el workflow con el error que tú escribas, y la ejecución queda como fallida (con todo lo que eso implica: aparece en rojo en <em>Executions</em> y dispara el error workflow).</p>
+    <ul class="lines">
+      <li><code>Error Type</code><span><em>Error Message</em> (un texto, admite expresiones) o <em>Error Object</em> (un JSON con <code>message</code>, <code>description</code> y lo que quieras).</span></li>
+    </ul>
+    <p>Lo normal es ponerlo detrás de un If o en la rama de error: «si no hay pedidos → Stop and Error: <em>No ha llegado ningún pedido hoy</em>».</p>
+
+    <h2 id="error-workflow">Que te avisen: el error workflow</h2>
+    <p>Un <strong>error workflow</strong> es un workflow normal que empieza por el trigger <strong>Error Trigger</strong>. Lo asignas a otros workflows y, cuando una ejecución de producción de alguno de ellos falla, n8n lo lanza con los datos del fallo. Un mismo error workflow sirve para todos tus workflows.</p>
+    <div class="flow" data-flujo="errwf"></div>
+    <h3>Cómo se monta</h3>
+    <ol class="steps">
+      <li>Crea un workflow (por ejemplo, «Avisos de error») y añade el trigger <strong>Error Trigger</strong> (búscalo como <em>Error</em>).</li>
+      <li>Detrás, lo que quieras: un mensaje por Telegram o un email (módulo 8), una fila en una hoja de cálculo…</li>
+      <li><strong>Publícalo.</strong> En n8n 2.x se ejecuta la versión publicada del error workflow; si no está publicado, no se lanza (y en los logs de n8n aparece <em>Workflow … is not active and cannot be executed</em>).</li>
+      <li>En el workflow que quieres vigilar, abre el menú <strong>⋯ → Settings</strong> y elige tu workflow en <strong>Error Workflow (to notify when this one errors)</strong>. Guarda.</li>
+    </ol>
+    <p>El Error Trigger recibe un item como este:</p>
+    <div class="code"><div class="h">Salida del Error Trigger<button class="copy" type="button">Copiar</button></div><pre><code>[
+  {
+    <span class="k">"execution"</span>: {
+      <span class="k">"id"</span>: <span class="s">"1234"</span>,
+      <span class="k">"url"</span>: <span class="s">"http://localhost:5678/workflow/aBc123/executions/1234"</span>,
+      <span class="k">"error"</span>: { <span class="k">"message"</span>: <span class="s">"Hay webs con errores: Tienda (404)"</span>, <span class="k">"stack"</span>: <span class="s">"…"</span> },
+      <span class="k">"lastNodeExecuted"</span>: <span class="s">"Avisar del fallo"</span>,
+      <span class="k">"mode"</span>: <span class="s">"trigger"</span>
+    },
+    <span class="k">"workflow"</span>: { <span class="k">"id"</span>: <span class="s">"aBc123"</span>, <span class="k">"name"</span>: <span class="s">"Comprobar webs"</span> }
+  }
+]</code></pre></div>
+    <ul class="lines">
+      <li><code>execution.url</code><span>Enlace directo a la ejecución fallida. Ponlo en el aviso: con un clic ves qué pasó.</span></li>
+      <li><code>execution.retryOf</code><span>Solo aparece si la ejecución fallida era un reintento de otra.</span></li>
+      <li><code>trigger</code><span>Si lo que falla es el propio trigger del workflow (por ejemplo, un trigger de Gmail con la credencial caducada), no hay ejecución: llega un objeto <code>trigger</code> con el <code>error</code> en lugar de <code>execution</code>.</span></li>
+    </ul>
+    <div class="note warn"><p>El error workflow <strong>no se lanza en las ejecuciones manuales</strong> (las de <em>Execute workflow</em>): solo en producción. Para probarlo, ejecuta el error workflow a mano: el Error Trigger saca unos datos de ejemplo (<em>Example Error Message</em>, <em>Example Workflow</em>) con la misma forma que los reales.</p></div>
+    <p>Si un workflow no tiene error workflow asignado pero contiene él mismo un Error Trigger, n8n lo usa para sus propios fallos. Es una forma de llevar el aviso dentro, aunque lo habitual es un único error workflow para todos.</p>
+
+    <h2 id="ajustes-workflow">Ajustes del workflow</h2>
+    <p>En el menú <strong>⋯ → Settings</strong> de cada workflow, además del error workflow, tienes:</p>
+    <div class="scroll">
+    <table class="stack">
+      <thead><tr><th>Ajuste</th><th>Por defecto</th><th>Para qué</th></tr></thead>
+      <tbody>
+        <tr><td>Save failed production executions</td><td>Guardar</td><td>Guardar las ejecuciones de producción que fallan. Déjalo siempre activado</td></tr>
+        <tr><td>Save successful production executions</td><td>Guardar</td><td>Desactívalo en workflows que se ejecutan muy a menudo para no llenar la base de datos</td></tr>
+        <tr><td>Save manual executions</td><td>Guardar</td><td>Guardar las ejecuciones que lanzas desde el editor</td></tr>
+        <tr><td>Save execution progress</td><td>No guardar</td><td>Guardar los datos tras cada nodo: si n8n se cae a mitad, puedes ver hasta dónde llegó (más lento)</td></tr>
+        <tr><td>Timeout Workflow</td><td>Desactivado</td><td>Cancelar la ejecución si tarda más de <em>Timeout After</em> (evita workflows colgados)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Las ejecuciones no se guardan para siempre: n8n borra las de más de <strong>14 días</strong> (336 horas) o, si hay muchas, se queda con las últimas <strong>10&nbsp;000</strong>. Puedes cambiarlo con variables de entorno en el <code>compose.yml</code> del módulo 2:</p>
+    <div class="code"><div class="h">compose.yml · environment (opcional)<button class="copy" type="button">Copiar</button></div><pre><code>      - <span class="s">EXECUTIONS_DATA_MAX_AGE=720</span>          <span class="c"># horas que se guardan (30 días)</span>
+      - <span class="s">EXECUTIONS_DATA_PRUNE_MAX_COUNT=20000</span> <span class="c"># máximo de ejecuciones guardadas</span>
+      - <span class="s">EXECUTIONS_DATA_SAVE_ON_SUCCESS=none</span>  <span class="c"># no guardar las correctas (todas)</span>
+      - <span class="s">EXECUTIONS_TIMEOUT=300</span>               <span class="c"># tiempo máximo por defecto, en segundos</span></code></pre></div>
+
+    <h2 id="simulador">Simulador de errores</h2>
+    <p>Este simulador ejecuta un trozo de la práctica: 4 webs entran en un nodo <strong>HTTP Request</strong> que las comprueba. Elige qué responde cada web, cambia los ajustes del nodo y del workflow, y pulsa <strong>Execute workflow</strong>. Mira cuántos intentos hace, por qué salida sale cada item, cómo termina la ejecución y si se lanza el error workflow.</p>
+    <div class="errsim" id="errsim">
+      <div class="es-in">
+        <h4>Input · 4 items</h4>
+        <div class="es-items" id="es-items"></div>
+        <h4>Workflow</h4>
+        <div class="hook-f"><span class="lbl">Cómo se ejecuta</span>
+          <div class="router-tipo" role="group" aria-label="Modo de ejecución">
+            <button type="button" data-modo="manual" aria-pressed="true">Manual (editor)</button><button type="button" data-modo="trigger" aria-pressed="false">Producción (trigger)</button>
+          </div>
+        </div>
+        <label class="hook-sw"><input type="checkbox" id="es-errwf" checked> Error Workflow: «Avisos de error»</label>
+        <label class="hook-sw"><input type="checkbox" id="es-stop"> <span>Stop and Error en la salida <em>error</em></span></label>
+      </div>
+      <div class="es-cfg">
+        <h4>HTTP Request · Settings</h4>
+        <label class="hook-sw"><input type="checkbox" id="es-retry"> Retry On Fail</label>
+        <div class="es-two">
+          <div class="hook-f"><label for="es-tries">Max. Tries</label><input type="number" id="es-tries" min="2" max="5" value="3"></div>
+          <div class="hook-f"><label for="es-wait">Wait Between Tries (ms)</label><input type="number" id="es-wait" min="0" max="5000" step="500" value="1000"></div>
+        </div>
+        <div class="hook-f"><label for="es-onerror">On Error</label>
+          <select id="es-onerror">
+            <option value="stopWorkflow">Stop Workflow</option>
+            <option value="continueRegularOutput">Continue</option>
+            <option value="continueErrorOutput">Continue (using error output)</option>
+          </select>
+        </div>
+        <label class="hook-sw"><input type="checkbox" id="es-always"> Always Output Data</label>
+        <div class="sim-btns"><button class="btn sm" type="button" id="es-run">Execute workflow</button><button class="btn sm ghost" type="button" id="es-reset">Restablecer</button></div>
+      </div>
+      <div class="es-out">
+        <h4>Resultado <span class="hook-st" id="es-st"></span></h4>
+        <ol class="es-log" id="es-log"><li class="as-empty">Pulsa «Execute workflow».</li></ol>
+        <p class="hook-msg" id="es-msg"></p>
+        <div class="es-outs" id="es-outs"></div>
+        <h4>Error workflow «Avisos de error»</h4>
+        <div class="es-ewf" id="es-ewf">—</div>
+        <h4>Executions <small>(las ejecuciones de esta sesión)</small></h4>
+        <ul class="es-hist" id="es-hist"><li class="as-empty">Todavía no hay ejecuciones.</li></ul>
+      </div>
+    </div>
+    <p class="lab-chips-t">Escenarios para probar (cargan una configuración):</p>
+    <div class="lab-chips" id="es-chips"></div>
+    <div class="note info"><p>El simulador imita las reglas del motor de n8n 2.49: el nodo se reintenta entero, con <em>Continue</em> solo reintenta si el <strong>primer</strong> item sale con error, la salida de error lleva los campos de entrada más <code>error</code> y <code>details</code>, <em>Always Output Data</em> saca <code>{}</code> si la salida principal queda vacía y el error workflow solo se lanza en producción. Simplifica lo demás: las respuestas son inventadas (la «API inestable» falla solo en su primera petición), los tiempos son aproximados y el objeto <code>error</code> se muestra resumido.</p></div>
+
+    <h2 id="logs">Los logs del servidor</h2>
+    <p>Algunos problemas no aparecen en ninguna ejecución: n8n no arranca, un error workflow no se lanza, un webhook no llega. Para esos, mira los mensajes del propio n8n con Docker (módulo 2):</p>
+    <div class="code"><div class="h">Terminal<button class="copy" type="button">Copiar</button></div><pre><code>docker compose logs -f n8n          <span class="c"># mensajes en directo (Ctrl+C para salir)</span>
+docker compose logs --tail 100 n8n  <span class="c"># las últimas 100 líneas</span></code></pre></div>
+    <p>Para ver más detalle mientras investigas, añade <code>N8N_LOG_LEVEL=debug</code> a las variables de entorno del <code>compose.yml</code> y reinicia con <code>docker compose up -d</code>. Los niveles son <code>error</code>, <code>warn</code>, <code>info</code> (por defecto) y <code>debug</code>. Vuelve a <code>info</code> cuando termines: <code>debug</code> escribe muchísimo.</p>
+
+    <h2 id="practica">Práctica: vigilante de webs</h2>
+    <p>Vas a construir un workflow que comprueba varias webs cada minuto, separa las que fallan, falla a propósito si alguna está mal y, entonces, otro workflow prepara un aviso. Usarás <code>httpbin.org/status/…</code>, que responde con el código que le pidas.</p>
+    <div class="flows">
+      <p class="flows-t">Workflow «Comprobar webs»</p>
+      <div class="flow" data-flujo="practica"></div>
+      <p class="flows-t">Workflow «Avisos de error»</p>
+      <div class="flow" data-flujo="avisos"></div>
+    </div>
+
+    <h3>Parte A · Provocar y leer un error</h3>
+    <ol class="steps">
+      <li><strong>Crea el workflow</strong> «Comprobar webs» con un <strong>Trigger manually</strong> llamado <strong>Al pulsar Ejecutar</strong>.</li>
+      <li><strong>Webs.</strong> Añade un <em>Edit Fields</em> llamado <strong>Webs</strong> en modo <em>JSON</em>:
+        <div class="code"><div class="h">JSON Output de «Webs»<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "webs": [
+    { "nombre": "Inicio", "url": "https://httpbin.org/status/200" },
+    { "nombre": "Tienda", "url": "https://httpbin.org/status/404" },
+    { "nombre": "Blog", "url": "https://httpbin.org/status/500" },
+    { "nombre": "Contacto", "url": "https://httpbin.org/status/200" }
+  ]
+}</code></pre></div>
+      </li>
+      <li><strong>Separar webs.</strong> Un <strong>Split Out</strong> con <em>Fields To Split Out</em> = <code>webs</code>: 4 items.</li>
+      <li><strong>Comprobar web.</strong> Un <strong>HTTP Request</strong> con <em>Method</em> GET y <em>URL</em> = <code>{{ $json.url }}</code>. Ejecuta el workflow.</li>
+      <li><strong>Lee el error.</strong> El nodo se pone en rojo. Ábrelo: <em>The resource you are requesting could not be found</em>, <em>HTTP Code</em> 404 y <em>Item Index</em> 1 (la Tienda, el segundo item). Fíjate en que no hay datos de salida: con <em>Stop Workflow</em> se pierde también lo que iba bien.</li>
+      <li><strong>Mira el historial.</strong> Abre la pestaña <strong>Executions</strong>: la ejecución aparece como <em>Error</em>. Ábrela y haz doble clic en <em>Comprobar web</em> para ver el mismo error. Vuelve a <em>Editor</em>.</li>
+    </ol>
+
+    <h3>Parte B · Reintentar (y ver cuándo no sirve)</h3>
+    <ol class="steps">
+      <li>En <em>Comprobar web</em> → <strong>Settings</strong>, activa <strong>Retry On Fail</strong> (deja <em>Max. Tries</em> 3 y <em>Wait Between Tries</em> 1000).</li>
+      <li>Ejecuta otra vez. Tarda unos 2 segundos más y falla igual: un 404 no se arregla esperando. Retry On Fail es para fallos pasajeros (en el simulador, prueba la «API inestable»).</li>
+      <li>Deja <em>Retry On Fail</em> activado: si un día httpbin tarda o se cae un momento, los reintentos lo cubrirán.</li>
+    </ol>
+
+    <h3>Parte C · Separar los errores por otra rama</h3>
+    <ol class="steps">
+      <li>En <em>Settings</em>, cambia <strong>On Error</strong> a <strong>Continue (using error output)</strong>. El nodo pasa a tener dos salidas: <em>Success</em> y <em>Error</em>.</li>
+      <li><strong>Web correcta.</strong> En la salida <em>Success</em>, un <em>Edit Fields</em> llamado <strong>Web correcta</strong> con <code>nombre</code> = <code>{{ $('Separar webs').item.json.nombre }}</code> y <code>estado</code> = <code>OK</code>. (httpbin responde sin contenido, por eso el nombre se recupera de un nodo anterior.)</li>
+      <li><strong>Web con error.</strong> En la salida <em>Error</em>, un <em>Edit Fields</em> llamado <strong>Web con error</strong> con cuatro campos: <code>nombre</code> = <code>{{ $json.nombre }}</code>, <code>url</code> = <code>{{ $json.url }}</code>, <code>codigo</code> = <code>{{ $json.details.httpCode }}</code> y <code>mensaje</code> = <code>{{ $json.details.message }}</code>.</li>
+      <li>Ejecuta. Ahora el workflow termina bien: 2 items en <em>Web correcta</em> (Inicio y Contacto) y 2 en <em>Web con error</em> (Tienda con 404 y Blog con 500). Abre la salida de error del HTTP Request y busca <code>details</code>.</li>
+      <li>Prueba un momento la opción <strong>Continue</strong> a secas: los 4 items salen juntos por una única salida y los que fallan solo llevan <code>error</code> y <code>details</code> (sin <code>nombre</code>). Vuelve a <em>Continue (using error output)</em>.</li>
+    </ol>
+
+    <h3>Parte D · Fallar a propósito</h3>
+    <ol class="steps">
+      <li>Tal como está, la ejecución termina en <em>Success</em> aunque haya webs caídas, así que nadie se enteraría. Detrás de <em>Web con error</em>, añade un <strong>Stop and Error</strong> llamado <strong>Avisar del fallo</strong>.</li>
+      <li>En <em>Error Message</em>, en modo <em>Expression</em>:
+        <div class="code"><div class="h">Error Message de «Avisar del fallo»<button class="copy" type="button">Copiar</button></div><pre><code>Hay webs con errores: {{ $('Web con error').all().map(i => i.json.nombre + ' (' + i.json.codigo + ')').join(', ') }}</code></pre></div>
+      </li>
+      <li>Ejecuta. La ejecución falla con el mensaje <em>Hay webs con errores: Tienda (404), Blog (500)</em>. Ese fallo «controlado» es el que va a disparar el aviso.</li>
+    </ol>
+
+    <h3>Parte E · El workflow de avisos</h3>
+    <ol class="steps">
+      <li>Crea otro workflow llamado <strong>Avisos de error</strong>. Como trigger, busca <strong>Error Trigger</strong>.</li>
+      <li>Ejecútalo a mano: sale un item de ejemplo (<em>Example Error Message</em>, <em>Example Workflow</em>). Te sirve para preparar el resto sin esperar a un fallo real.</li>
+      <li>Añade un <em>Edit Fields</em> llamado <strong>Preparar aviso</strong> con estos campos:
+        <div class="scroll">
+        <table class="stack">
+          <thead><tr><th>Name</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td><code>workflow</code></td><td><code>{{ $json.workflow.name }}</code></td></tr>
+            <tr><td><code>nodo</code></td><td><code>{{ $json.execution.lastNodeExecuted }}</code></td></tr>
+            <tr><td><code>error</code></td><td><code>{{ $json.execution.error.message }}</code></td></tr>
+            <tr><td><code>enlace</code></td><td><code>{{ $json.execution.url }}</code></td></tr>
+            <tr><td><code>modo</code></td><td><code>{{ $json.execution.mode }}</code></td></tr>
+            <tr><td><code>aviso</code></td><td><code>⚠ Ha fallado «{{ $json.workflow.name }}» en el nodo «{{ $json.execution.lastNodeExecuted }}»: {{ $json.execution.error.message }}</code></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </li>
+      <li>(Opcional) Si hiciste el módulo 8, añade detrás un <em>Telegram</em> o un <em>Gmail</em> que envíe <code>{{ $json.aviso }}</code> y <code>{{ $json.enlace }}</code>.</li>
+      <li><strong>Publica</strong> «Avisos de error» (<kbd>Shift</kbd> + <kbd>P</kbd>). Sin publicar no se lanzará.</li>
+    </ol>
+
+    <h3>Parte F · Conectarlos y probar en producción</h3>
+    <ol class="steps">
+      <li>Vuelve a «Comprobar webs». Abre <strong>⋯ → Settings</strong>, elige <strong>Avisos de error</strong> en <em>Error Workflow (to notify when this one errors)</em> y guarda.</li>
+      <li>Ejecuta a mano: falla, pero «Avisos de error» <strong>no</strong> se lanza (mira su pestaña <em>Executions</em>). Es lo esperado: las ejecuciones manuales no disparan el error workflow.</li>
+      <li>Añade un <strong>Schedule Trigger</strong> llamado <strong>Cada minuto</strong> (<em>Trigger Interval</em> = Minutes, <em>Minutes Between Triggers</em> = 1) y conéctalo también a <em>Webs</em>. Publica el workflow.</li>
+      <li>Espera un par de minutos. En <em>Executions</em> de «Comprobar webs» verás ejecuciones en <em>Error</em>; en las de «Avisos de error», ejecuciones correctas. Abre una: <em>Preparar aviso</em> tiene el mensaje y el enlace a la ejecución fallida (con <code>modo</code> = <code>trigger</code>). Pulsa el enlace.</li>
+      <li><strong>Despublica</strong> «Comprobar webs» para que no siga ejecutándose cada minuto.</li>
+    </ol>
+    <div class="note tip"><p>Para practicar la depuración, abre una de las ejecuciones fallidas y prueba <strong>Retry execution</strong> y, si tu instalación está registrada, <strong>Debug in editor</strong>. Después cambia la URL del Blog a <code>https://httpbin.org/status/200</code> en <em>Webs</em> y reintenta con <em>Retry with current version</em>.</p></div>
+
+    <h2 id="solucion">Solución</h2>
+    <p>Dos workflows. Pégalos en lienzos vacíos distintos. Después, publica «Avisos de error» y asígnalo en los <em>Settings</em> de «Comprobar webs» (la asignación no viaja en el JSON porque depende del identificador de tu workflow).</p>
+    <div class="tabs">
+      <div role="tablist" aria-label="Workflows de la solución">
+        <button role="tab" id="t-sa" aria-controls="p-sa" aria-selected="true">Comprobar webs</button>
+        <button role="tab" id="t-sb" aria-controls="p-sb" aria-selected="false">Avisos de error</button>
+      </div>
+      <div role="tabpanel" id="p-sa" aria-labelledby="t-sa">
+        <div class="code"><div class="h">Workflow «Comprobar webs» (JSON para pegar en el lienzo)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "b7e2d4c1-11aa-4c3d-8e9f-0a1b2c3d0001",
+      "name": "Al pulsar Ejecutar"
+    },
+    {
+      "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 1}]}},
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [0, 200],
+      "id": "b7e2d4c1-11aa-4c3d-8e9f-0a1b2c3d0002",
+      "name": "Cada minuto"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"webs\": [\n    { \"nombre\": \"Inicio\", \"url\": \"https://httpbin.org/status/200\" },\n    { \"nombre\": \"Tienda\", \"url\": \"https://httpbin.org/status/404\" },\n    { \"nombre\": \"Blog\", \"url\": \"https://httpbin.org/status/500\" },\n    { \"nombre\": \"Contacto\", \"url\": \"https://httpbin.org/status/200\" }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 100],
+      "id": "b7e2d4c1-11aa-4c3d-8e9f-0a1b2c3d0003",
+      "name": "Webs"
+    },
+    {
+      "parameters": {"fieldToSplitOut": "webs", "options": {}},
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [440, 100],
+      "id": "b7e2d4c1-11aa-4c3d-8e9f-0a1b2c3d0004",
+      "name": "Separar webs"
+    },
+    {
+      "parameters": {"url": "={{ $json.url }}", "options": {}},
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [660, 100],
+      "id": "b7e2d4c1-11aa-4c3d-8e9f-0a1b2c3d0005",
+      "name": "Comprobar web",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {"assignments": [
+          {"id": "a1", "name": "nombre", "value": "={{ $('Separar webs').item.json.nombre }}", "type": "string"},
+          {"id": "a2", "name": "estado", "value": "OK", "type": "string"}
+        ]},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 0],
+      "id": "b7e2d4c1-11aa-4c3d-8e9f-0a1b2c3d0006",
+      "name": "Web correcta"
+    },
+    {
+      "parameters": {
+        "assignments": {"assignments": [
+          {"id": "b1", "name": "nombre", "value": "={{ $json.nombre }}", "type": "string"},
+          {"id": "b2", "name": "url", "value": "={{ $json.url }}", "type": "string"},
+          {"id": "b3", "name": "codigo", "value": "={{ $json.details.httpCode }}", "type": "string"},
+          {"id": "b4", "name": "mensaje", "value": "={{ $json.details.message }}", "type": "string"}
+        ]},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 200],
+      "id": "b7e2d4c1-11aa-4c3d-8e9f-0a1b2c3d0007",
+      "name": "Web con error"
+    },
+    {
+      "parameters": {
+        "errorMessage": "=Hay webs con errores: {{ $('Web con error').all().map(i =&gt; i.json.nombre + ' (' + i.json.codigo + ')').join(', ') }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [1120, 200],
+      "id": "b7e2d4c1-11aa-4c3d-8e9f-0a1b2c3d0008",
+      "name": "Avisar del fallo"
+    }
+  ],
+  "connections": {
+    "Al pulsar Ejecutar": {"main": [[{"node": "Webs", "type": "main", "index": 0}]]},
+    "Cada minuto": {"main": [[{"node": "Webs", "type": "main", "index": 0}]]},
+    "Webs": {"main": [[{"node": "Separar webs", "type": "main", "index": 0}]]},
+    "Separar webs": {"main": [[{"node": "Comprobar web", "type": "main", "index": 0}]]},
+    "Comprobar web": {"main": [[{"node": "Web correcta", "type": "main", "index": 0}], [{"node": "Web con error", "type": "main", "index": 0}]]},
+    "Web con error": {"main": [[{"node": "Avisar del fallo", "type": "main", "index": 0}]]}
+  }
+}</code></pre></div>
+      </div>
+      <div role="tabpanel" id="p-sb" aria-labelledby="t-sb" hidden>
+        <div class="code"><div class="h">Workflow «Avisos de error» (JSON para pegar en el lienzo)<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "c8f3e5d2-11bb-4d4e-9f0a-1b2c3d4e0001",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {"assignments": [
+          {"id": "c1", "name": "workflow", "value": "={{ $json.workflow.name }}", "type": "string"},
+          {"id": "c2", "name": "nodo", "value": "={{ $json.execution.lastNodeExecuted }}", "type": "string"},
+          {"id": "c3", "name": "error", "value": "={{ $json.execution.error.message }}", "type": "string"},
+          {"id": "c4", "name": "enlace", "value": "={{ $json.execution.url }}", "type": "string"},
+          {"id": "c5", "name": "modo", "value": "={{ $json.execution.mode }}", "type": "string"},
+          {"id": "c6", "name": "aviso", "value": "=⚠ Ha fallado «{{ $json.workflow.name }}» en el nodo «{{ $json.execution.lastNodeExecuted }}»: {{ $json.execution.error.message }}", "type": "string"}
+        ]},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "id": "c8f3e5d2-11bb-4d4e-9f0a-1b2c3d4e0002",
+      "name": "Preparar aviso"
+    }
+  ],
+  "connections": {
+    "Error Trigger": {"main": [[{"node": "Preparar aviso", "type": "main", "index": 0}]]}
+  }
+}</code></pre></div>
+      </div>
+    </div>
+
+    <h2 id="problemas">Problemas frecuentes</h2>
+    <div class="faq">
+      <details><summary>El error workflow no se lanza</summary><div><p>Revisa, por orden: 1) ¿era una ejecución manual? Esas no lo disparan. 2) ¿Está publicado el error workflow? 3) ¿Empieza por un <em>Error Trigger</em>? 4) ¿Está elegido en <em>Settings → Error Workflow</em> del workflow que falla? 5) ¿Falló de verdad? Con <em>On Error</em> en <em>Continue</em> la ejecución termina en <em>Success</em>. Si todo está bien, mira <code>docker compose logs n8n</code>.</p></div></details>
+      <details><summary>Retry On Fail no reintenta</summary><div><p>Con <em>On Error</em> en <em>Continue</em> o <em>Continue (using error output)</em>, el nodo no falla: n8n solo lo reintenta si el <strong>primer</strong> item sale con error. Si necesitas reintentar cada item, déjalo en <em>Stop Workflow</em> con <em>Retry On Fail</em>, o reintenta la rama de error con un bucle.</p></div></details>
+      <details><summary><code>$json.details</code> sale vacío</summary><div><p>El campo <code>details</code> lo añade el HTTP Request desde su versión 4.5. En nodos más antiguos, o en otros nodos, el error está solo en <code>$json.error</code> (a veces un texto, a veces un objeto con <code>message</code>). Mira la salida de error en vista JSON para ver qué trae.</p></div></details>
+      <details><summary>En la rama de error falta el nombre o los datos de entrada</summary><div><p>Estás usando <em>Continue</em> a secas, que no copia los campos de entrada. Usa <em>Continue (using error output)</em> o recupera los datos con <code>{{ $('Separar webs').item.json.nombre }}</code>.</p></div></details>
+      <details><summary>«Upgrade to access Debug In Editor»</summary><div><p>Tu instalación no está registrada. La <em>Community Edition</em> registrada es gratuita y desbloquea esta función. Mientras tanto, copia los datos de la ejecución y fíjalos a mano con <em>Pin data</em>.</p></div></details>
+      <details><summary>Una ejecución de hace un mes ya no aparece</summary><div><p>n8n borra las ejecuciones de más de 14 días (o las que pasan de 10&nbsp;000). Cámbialo con <code>EXECUTIONS_DATA_MAX_AGE</code> y <code>EXECUTIONS_DATA_PRUNE_MAX_COUNT</code>. Comprueba también que el workflow guarda las ejecuciones correctas en sus <em>Settings</em>.</p></div></details>
+      <details><summary>Una ejecución se queda en <em>Running</em> para siempre</summary><div><p>Algún nodo espera algo que no llega (una API que no responde, un Wait muy largo). Párala desde <em>Executions</em> y pon un límite en <em>Settings → Timeout Workflow</em>. En el HTTP Request, ajusta <em>Options → Timeout</em>.</p></div></details>
+    </div>
+
+    <h2 id="retos">Retos para practicar</h2>
+    <div class="grid">
+      <div class="card"><h3 style="margin-top:0">Reto 1 · Solo si falla mucho</h3><p style="margin:0">Haz que «Avisar del fallo» solo pare el workflow si fallan 2 webs o más. Pista: un <em>If</em> con <code>$('Web con error').all().length</code> y la opción <em>Execute Once</em>.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 2 · Registro de fallos</h3><p style="margin:0">En «Avisos de error», guarda cada aviso como fila de una hoja de Google Sheets (módulo 8) con la fecha, el workflow, el nodo, el error y el enlace.</p></div>
+      <div class="card"><h3 style="margin-top:0">Reto 3 · Un día sin datos</h3><p style="margin:0">En el workflow de pedidos del módulo 7, para el workflow con <em>Stop and Error</em> si el Filter de pagados deja 0 items. ¿Qué ajuste del Filter necesitas para que el siguiente nodo se ejecute aunque no haya items?</p></div>
+    </div>
+    <details class="term"><summary><i>?</i>Ver las soluciones</summary>
+      <div class="code"><div class="h">Soluciones de los retos<button class="copy" type="button">Copiar</button></div><pre><code><span class="c">// Reto 1 · Entre «Web con error» y «Avisar del fallo», un If «¿Muchos fallos?»</span>
+<span class="c">//   Settings → Execute Once: activado (para evaluarlo una sola vez)</span>
+<span class="c">//   Condición (Number · is greater than or equal to):</span>
+{{ $('Web con error').all().length }}   &gt;=   2
+<span class="c">//   Salida true → Avisar del fallo. Salida false → nada.</span>
+
+<span class="c">// Reto 2 · Detrás de «Preparar aviso», Google Sheets · Append Row</span>
+fecha    = {{ $now.toFormat('dd/MM/yyyy HH:mm') }}
+workflow = {{ $json.workflow }}
+nodo     = {{ $json.nodo }}
+error    = {{ $json.error }}
+enlace   = {{ $json.enlace }}
+
+<span class="c">// Reto 3 · En el Filter: Settings → Always Output Data (sale {} si no queda nada)</span>
+<span class="c">// Detrás, un If: {{ $json.id }} is empty → Stop and Error «Hoy no hay pedidos pagados»</span>
+<span class="c">// Sin Always Output Data, con 0 items el workflow se acaba en el Filter sin error.</span></code></pre></div>
+    </details>
+
+    <h3>Comprueba tu práctica</h3>
+    <ul class="check" id="checklist" data-ok="¡Muy bien! Tus workflows ya saben fallar con elegancia.">
+      <li><label><input type="checkbox"><span>Sé leer un error: mensaje, nodo, código e Item Index</span></label></li>
+      <li><label><input type="checkbox"><span>He abierto una ejecución fallida en la pestaña Executions</span></label></li>
+      <li><label><input type="checkbox"><span>Sé cuándo sirve Retry On Fail y cuándo no</span></label></li>
+      <li><label><input type="checkbox"><span>He separado los items que fallan con Continue (using error output)</span></label></li>
+      <li><label><input type="checkbox"><span>He usado Stop and Error para fallar a propósito</span></label></li>
+      <li><label><input type="checkbox"><span>He creado y publicado un error workflow con Error Trigger</span></label></li>
+      <li><label><input type="checkbox"><span>He comprobado que el aviso llega en producción y no en manual</span></label></li>
+    </ul>
+    <p class="check-msg" id="check-msg" aria-live="polite"></p>
+
+    <h2 id="test">Comprueba lo que has aprendido</h2>
+    <div id="quiz" class="quiz"></div>
+
+    <button class="btn done-btn" type="button" data-marcar>Marcar módulo como completado</button>
+
+    <nav class="pager" aria-label="Navegación entre módulos">
+      <a class="btn ghost" href="10-ia.html">← Módulo 10: IA en n8n</a>
+      <a class="btn ghost" href="../index.html">Volver al índice</a>
+    </nav>
+  </main>
+</div>
+<footer>Tutorial didáctico de n8n · Basado en la <a href="https://docs.n8n.io/">documentación oficial</a> de n8n 2.x · Revisado en noviembre de 2026</footer>
+
+<script>
+window.FLUJOS = {
+  errwf: [
+    { tipo: 'trig', ico: '⏱', t: 'Workflow vigilado', d: 'Falla en producción' },
+    { ico: '!', t: 'n8n', d: 'Mira Settings → Error Workflow' },
+    { tipo: 'trig', ico: '⚡', t: 'Error Trigger', d: 'Recibe los datos del fallo' },
+    { ico: '✉', t: 'Aviso', d: 'Telegram, email, hoja…' }
+  ],
+  practica: [
+    { tipo: 'trig', ico: '⏱', t: 'Cada minuto', d: 'o Al pulsar Ejecutar' },
+    { ico: '✎', t: 'Webs', d: 'JSON · 4 webs' },
+    { ico: '⇶', t: 'Separar webs', d: 'Split Out · 4 items' },
+    { ico: '↻', t: 'Comprobar web', d: 'HTTP Request · reintentos · salida de error' },
+    { ico: '✎', t: 'Web con error', d: 'Rama Error · 2 items' },
+    { ico: '■', t: 'Avisar del fallo', d: 'Stop and Error' }
+  ],
+  avisos: [
+    { tipo: 'trig', ico: '⚡', t: 'Error Trigger', d: 'Datos del fallo' },
+    { ico: '✎', t: 'Preparar aviso', d: 'Edit Fields · texto y enlace' },
+    { ico: '✉', t: 'Telegram o Gmail', d: 'Opcional (módulo 8)' }
+  ]
+};
+window.QUIZ = [
+  { p: 'Un HTTP Request falla a veces con «503 Service unavailable» y a la segunda funciona. ¿Qué ajuste usas?', o: ['On Error: Continue', 'Retry On Fail', 'Always Output Data'], c: 1, e: 'Es un fallo pasajero: Retry On Fail vuelve a ejecutar el nodo tras una espera. Continue solo escondería el error.' },
+  { p: 'Pones On Error en «Continue (using error output)». ¿Qué pasa con un item que falla?', o: ['Se pierde sin avisar', 'Sale por una segunda salida «Error» con sus datos de entrada y el error', 'Para el workflow'], c: 1, e: 'Los items buenos salen por Success y los que fallan por Error, con sus campos de entrada más error y details.' },
+  { p: 'Tu workflow separa los errores por la rama Error y termina en Success. ¿Se lanza el error workflow?', o: ['Sí, siempre que haya algún item con error', 'No: la ejecución no ha fallado. Añade un Stop and Error si quieres el aviso', 'Solo si está publicado'], c: 1, e: 'El error workflow se lanza cuando la ejecución falla. Con Continue el nodo no falla; Stop and Error provoca el fallo a propósito.' },
+  { p: 'Pruebas tu workflow con «Execute workflow», falla, y el error workflow no se ejecuta. ¿Por qué?', o: ['Porque las ejecuciones manuales no disparan el error workflow', 'Porque falta Retry On Fail', 'Porque el Error Trigger solo funciona en n8n Cloud'], c: 0, e: 'El error workflow es para fallos de producción. Para probarlo, ejecuta el error workflow a mano (saca datos de ejemplo) o provoca un fallo desde un trigger publicado.' },
+  { p: '¿Dónde ves qué datos tenía cada nodo en una ejecución de producción que falló ayer?', o: ['En la pestaña Executions del workflow, abriendo esa ejecución', 'En el panel Output del editor', 'Solo en los logs de Docker'], c: 0, e: 'Cada ejecución guardada conserva la entrada y la salida de cada nodo. Ábrela desde Executions y haz doble clic en los nodos.' },
+  { p: 'Con Retry On Fail (Max. Tries 3), un nodo envía 10 emails y falla en el octavo. ¿Qué ocurre al reintentar?', o: ['Solo reenvía los 3 que faltan', 'Vuelve a ejecutar el nodo entero: reenvía los 10', 'No reintenta los nodos de email'], c: 1, e: 'El reintento repite el nodo completo con todos sus items. Para acciones que no deben repetirse, procesa de uno en uno o no las reintentes.' }
+];
+</script>
+<script src="../js/main.js"></script>
+<script>
+{
+  /* ---- Simulador de errores ---- */
+  const $e = id => document.getElementById(id);
+  const raiz = $e('errsim');
+  const MSG = {
+    404: 'The resource you are requesting could not be found',
+    500: 'The service was not able to process your request',
+    503: 'Service unavailable - try again later or consider setting this node to retry automatically (in the node settings)',
+    429: 'The service is receiving too many requests from you'
+  };
+  const RESP = [
+    { v: '200', t: '200 OK' },
+    { v: '404', t: '404 Not Found' },
+    { v: '500', t: '500 Error del servidor' },
+    { v: '503t', t: 'API inestable (503 la 1.ª vez)' },
+    { v: '429t', t: 'Límite de peticiones (429 la 1.ª vez)' }
+  ];
+  const NOMBRES = ['Inicio', 'Tienda', 'Blog', 'Contacto'];
+  const DEF = { resp: ['200', '404', '500', '200'], modo: 'manual', errwf: true, stop: false, retry: false, tries: 3, wait: 1000, onError: 'stopWorkflow', always: false };
+  let st = JSON.parse(JSON.stringify(DEF));
+  let siguienteId = 1001;
+  const historial = [];
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const url = i => 'https://httpbin.org/status/' + (st.resp[i].endsWith('t') ? st.resp[i].slice(0, 3) : st.resp[i]);
+
+  const pintarItems = () => {
+    $e('es-items').innerHTML = NOMBRES.map((n, i) => `<div class="es-it"><label for="es-r${i}"><b>${i}</b> ${n}</label><select id="es-r${i}" data-i="${i}">${RESP.map(r => `<option value="${r.v}"${r.v === st.resp[i] ? ' selected' : ''}>${r.t}</option>`).join('')}</select></div>`).join('');
+  };
+  const pintarCfg = () => {
+    document.querySelectorAll('#errsim [data-modo]').forEach(b => b.setAttribute('aria-pressed', b.dataset.modo === st.modo));
+    $e('es-errwf').checked = st.errwf;
+    $e('es-stop').checked = st.stop;
+    $e('es-stop').disabled = st.onError !== 'continueErrorOutput';
+    $e('es-stop').closest('label').classList.toggle('off', st.onError !== 'continueErrorOutput');
+    $e('es-retry').checked = st.retry;
+    $e('es-tries').value = st.tries; $e('es-wait').value = st.wait;
+    $e('es-tries').disabled = $e('es-wait').disabled = !st.retry;
+    $e('es-onerror').value = st.onError;
+    $e('es-always').checked = st.always;
+  };
+  const leerCfg = () => {
+    st.errwf = $e('es-errwf').checked;
+    st.retry = $e('es-retry').checked;
+    st.tries = Math.min(5, Math.max(2, parseInt($e('es-tries').value, 10) || 3));
+    st.wait = Math.min(5000, Math.max(0, parseInt($e('es-wait').value, 10) || 0));
+    st.onError = $e('es-onerror').value;
+    st.always = $e('es-always').checked;
+    st.stop = st.onError === 'continueErrorOutput' && $e('es-stop').checked;
+  };
+
+  /* Una petición: devuelve el código HTTP. Las «inestables» fallan solo en su primera petición */
+  const peticion = (i, cont) => {
+    const r = st.resp[i];
+    cont[i]++;
+    if (r === '503t') return cont[i] === 1 ? 503 : 200;
+    if (r === '429t') return cont[i] === 1 ? 429 : 200;
+    return Number(r);
+  };
+  const itemError = (i, code) => ({
+    error: { '…': 'objeto completo del error (resumido en el simulador)' },
+    details: { message: MSG[code], httpCode: String(code), body: '' }
+  });
+
+  const ejecutar = () => {
+    leerCfg();
+    const T = st.retry ? st.tries : 1;
+    const cont = [0, 0, 0, 0];
+    const log = [];
+    let ms = 0, intento = 0, resultados = null, fallo = null;
+    for (intento = 1; intento <= T; intento++) {
+      if (intento > 1) ms += st.wait;
+      resultados = NOMBRES.map((n, i) => peticion(i, cont));
+      ms += 250;
+      const txt = resultados.map((c, i) => `${NOMBRES[i]} ${c}`).join(' · ');
+      const primerError = resultados.findIndex(c => c >= 400);
+      if (st.onError === 'stopWorkflow') {
+        if (primerError === -1) { log.push({ c: 'ok', t: `Intento ${intento}`, d: txt + ' → todo bien.' }); fallo = null; break; }
+        fallo = { i: primerError, code: resultados[primerError] };
+        if (intento < T) log.push({ c: 'warn', t: `Intento ${intento}`, d: `${txt} → el nodo falla (item ${primerError}). Espera ${st.wait} ms y repite el nodo entero.` });
+        else log.push({ c: 'err', t: `Intento ${intento}`, d: `${txt} → el nodo falla (item ${primerError})${T > 1 ? ' y no quedan intentos' : ''}.` });
+      } else {
+        const primeroMal = resultados[0] >= 400;
+        if (primeroMal && intento < T) { log.push({ c: 'warn', t: `Intento ${intento}`, d: `${txt} → el primer item tiene error: n8n repite el nodo entero tras ${st.wait} ms.` }); continue; }
+        const nErr = resultados.filter(c => c >= 400).length;
+        log.push({ c: nErr ? 'warn' : 'ok', t: `Intento ${intento}`, d: txt + (nErr ? ` → ${nErr} item${nErr > 1 ? 's' : ''} con error, pero el nodo no falla (On Error: ${st.onError === 'continueErrorOutput' ? 'Continue (using error output)' : 'Continue'}).` : ' → todo bien.') + (nErr && T > 1 && !primeroMal ? ' No reintenta: el primer item está bien.' : '') });
+        break;
+      }
+    }
+    if (intento > T) intento = T;
+
+    /* Salidas */
+    let estado = 'Success', mensaje = '', ultimoNodo = 'Comprobar web';
+    const salidas = [];
+    if (fallo) {
+      estado = 'Error'; mensaje = MSG[fallo.code];
+    } else if (st.onError === 'stopWorkflow' || st.onError === 'continueErrorOutput') {
+      const ok = resultados.map((c, i) => c < 400 ? i : -1).filter(i => i >= 0);
+      const mal = resultados.map((c, i) => c >= 400 ? i : -1).filter(i => i >= 0);
+      let okItems = ok.map(i => ({ chip: NOMBRES[i] }));
+      if (!okItems.length && st.always) okItems = [{ chip: '{ } (vacío)' }];
+      salidas.push({ t: 'Success', items: okItems, ok: true });
+      if (st.onError === 'continueErrorOutput') {
+        salidas.push({ t: 'Error', items: mal.map(i => ({ json: { nombre: NOMBRES[i], url: url(i), ...itemError(i, resultados[i]) } })), ok: false });
+        if (st.stop && mal.length) {
+          estado = 'Error'; ultimoNodo = 'Avisar del fallo';
+          mensaje = 'Hay webs con errores: ' + mal.map(i => `${NOMBRES[i]} (${resultados[i]})`).join(', ');
+          log.push({ c: 'err', t: 'Avisar del fallo', d: 'Stop and Error: ' + mensaje });
+        }
+      }
+    } else {
+      const items = resultados.map((c, i) => c < 400 ? { chip: NOMBRES[i] } : { json: itemError(i, c) });
+      salidas.push({ t: 'Output (único)', items, ok: true });
+    }
+
+    const id = siguienteId++;
+    const modo = st.modo;
+    const reg = { id, wf: 'Comprobar webs', estado, modo };
+    historial.unshift(reg);
+
+    /* Error workflow */
+    let ewf;
+    if (estado !== 'Error') ewf = { ok: false, t: 'No se ejecuta: la ejecución ha terminado en Success' + (salidas.some(s => !s.ok && s.items.length) || salidas.some(s => s.items.some(x => x.json)) ? ' (aunque haya items con error, están controlados).' : '.') };
+    else if (modo === 'manual') ewf = { ok: false, t: 'No se ejecuta: las ejecuciones manuales no disparan el error workflow. Cambia a «Producción».' };
+    else if (!st.errwf) ewf = { ok: false, t: 'No se ejecuta: el workflow no tiene Error Workflow en sus Settings.' };
+    else {
+      const datos = [{ execution: { id: String(id), url: `http://localhost:5678/workflow/aBc123/executions/${id}`, error: { message: mensaje, stack: '…' }, lastNodeExecuted: ultimoNodo, mode: 'trigger' }, workflow: { id: 'aBc123', name: 'Comprobar webs' } }];
+      ewf = { ok: true, t: 'Se ejecuta. El Error Trigger recibe:', json: datos };
+      historial.unshift({ id: siguienteId++, wf: 'Avisos de error', estado: 'Success', modo: 'error' });
+    }
+    return { log, estado, mensaje, salidas, ewf, ms, intentos: intento, reg };
+  };
+
+  const pintarResultado = r => {
+    $e('es-log').innerHTML = r.log.map(l => `<li class="${l.c}"><b>${esc(l.t)}</b><span>${esc(l.d)}</span></li>`).join('');
+    $e('es-st').textContent = `${r.estado === 'Error' ? 'Error' : 'Success'} · ${r.intentos} intento${r.intentos > 1 ? 's' : ''} · ~${(r.ms / 1000).toFixed(1).replace('.', ',')} s`;
+    $e('es-st').className = 'hook-st ' + (r.estado === 'Error' ? 'bad' : 'ok');
+    raiz.classList.toggle('fail', r.estado === 'Error');
+    const msg = $e('es-msg');
+    msg.textContent = r.estado === 'Error' ? 'La ejecución falla: ' + r.mensaje : 'La ejecución termina bien.';
+    msg.className = 'hook-msg ' + (r.estado === 'Error' ? 'bad' : 'ok');
+    $e('es-outs').innerHTML = r.estado === 'Error' && !r.salidas.length
+      ? '<p class="es-none">Con <em>Stop Workflow</em> el nodo no saca nada: ni siquiera los items que iban bien.</p>'
+      : r.salidas.map(s => `<div class="es-o ${s.ok ? '' : 'bad'}"><h5>${esc(s.t)} <small>${s.items.length} item${s.items.length === 1 ? '' : 's'}</small></h5>${
+        s.items.length ? s.items.map(x => x.chip ? `<span class="rt-chip">${esc(x.chip)}</span>` : `<pre>${esc(JSON.stringify(x.json, null, 2))}</pre>`).join('') : '<p class="rt-empty">Sin items: los nodos de esta rama no se ejecutan.</p>'}</div>`).join('');
+    const ewf = $e('es-ewf');
+    ewf.className = 'es-ewf ' + (r.ewf.ok ? 'ok' : '');
+    ewf.innerHTML = `<p>${esc(r.ewf.t)}</p>` + (r.ewf.json ? `<pre>${esc(JSON.stringify(r.ewf.json, null, 2))}</pre>` : '');
+    $e('es-hist').innerHTML = historial.slice(0, 8).map(h => `<li><code>#${h.id}</code><span>${esc(h.wf)}</span><em class="${h.estado === 'Error' ? 'bad' : 'ok'}">${h.estado}</em><small>${h.modo === 'manual' ? 'Manual' : h.modo === 'error' ? 'Error workflow' : 'Trigger'}</small></li>`).join('');
+  };
+
+  const ESC = [
+    { t: 'Por defecto: un 404 lo para todo', s: {} },
+    { t: 'Reintentar un 404 no sirve', s: { retry: true } },
+    { t: 'API inestable + Retry On Fail', s: { resp: ['200', '503t', '200', '200'], retry: true } },
+    { t: 'Separar errores por la salida Error', s: { onError: 'continueErrorOutput' } },
+    { t: 'Continue a secas', s: { onError: 'continueRegularOutput' } },
+    { t: 'Error output + Stop and Error en manual', s: { onError: 'continueErrorOutput', stop: true } },
+    { t: 'Lo mismo en producción: llega el aviso', s: { onError: 'continueErrorOutput', stop: true, modo: 'trigger' } },
+    { t: 'Continue sin reintento (primer item bien)', s: { resp: ['200', '503t', '200', '200'], retry: true, onError: 'continueErrorOutput' } },
+    { t: 'Todo falla + Always Output Data', s: { resp: ['404', '500', '404', '500'], onError: 'continueErrorOutput', always: true } }
+  ];
+  $e('es-chips').innerHTML = ESC.map((x, i) => `<button type="button" data-esc="${i}">${esc(x.t)}</button>`).join('');
+  const cargar = i => {
+    st = Object.assign(JSON.parse(JSON.stringify(DEF)), JSON.parse(JSON.stringify(ESC[i].s)));
+    pintarItems(); pintarCfg(); pintarResultado(ejecutar());
+  };
+
+  raiz.addEventListener('change', e => {
+    if (e.target.dataset.i !== undefined) st.resp[+e.target.dataset.i] = e.target.value;
+    leerCfg(); pintarCfg();
+  });
+  raiz.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.modo) { st.modo = b.dataset.modo; pintarCfg(); }
+    else if (b.id === 'es-run') pintarResultado(ejecutar());
+    else if (b.id === 'es-reset') { st = JSON.parse(JSON.stringify(DEF)); pintarItems(); pintarCfg(); }
+  });
+  $e('es-chips').addEventListener('click', e => { const b = e.target.closest('button[data-esc]'); if (b) cargar(+b.dataset.esc); });
+  pintarItems(); pintarCfg();
+}
+</script>
+</body>
+</html>
